@@ -1,3 +1,1 @@
 # niroto1096-CSE470_sec-20_manga-review-website
-
-abcdefg
