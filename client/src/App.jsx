@@ -1,9 +1,7 @@
-
-
 import Registration from "./Pages/registration";
 import Otp from "./Pages/otp";
 import Login from "./Pages/login"; // fix import: use your custom Login component
-
+import PublicRoute from "./Routes/publicRoute";
 import { Route, Routes } from "react-router-dom";
 import UserProvider from "./Context/UserContext";
 import ProtectedRoute from "./Routes/protectedRoute";
@@ -32,9 +30,23 @@ function App() {
       <Navbar/>
       <Routes>
         
-        <Route path="/registration" element={<Registration />} />
+          <Route
+    path="/registration"
+    element={
+      <PublicRoute>
+        <Registration/>
+      </PublicRoute>
+    }
+  />
         <Route path="/otp" element={<Otp />} />
-        <Route path="/login" element={<Login />} />
+        <Route
+    path="/login"
+    element={
+      <PublicRoute>
+        <Login />
+      </PublicRoute>
+    }
+  />
         <Route path="/unauthorized" element={<Unauthorized />} />
         <Route path="/" element={<Home/>}/>
         
