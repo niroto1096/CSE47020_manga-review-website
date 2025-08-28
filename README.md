@@ -1,6 +1,6 @@
 # niroto1096-CSE470_sec-20_manga-review-website
 
-#This repository contains a full-stack manga review website with separate frontend and backend applications.
+##This repository contains a full-stack manga review website with separate frontend and backend applications.
 
 ##Frontend (client)
 *Framework: React (with Vite for fast development)
