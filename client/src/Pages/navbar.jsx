@@ -32,21 +32,40 @@ const Navbar = () => {
         </Link>
 
         <div className="hidden md:flex space-x-6 items-center">
-          <Link to="/" className="text-white hover:text-blue-600 font-medium">Home</Link>
+          <Link to="/" className="text-white hover:text-blue-600 font-medium">
+            Home
+          </Link>
           {role === "admin" && (
             <>
-              <Link to="/upload" className="text-white hover:text-blue-600 font-medium">Upload</Link>
-              <Link to="/admin-manga" className="text-white hover:text-blue-600 font-medium">Manage</Link>
+              <Link
+                to="/upload"
+                className="text-white hover:text-blue-600 font-medium"
+              >
+                Upload
+              </Link>
+              <Link
+                to="/admin-manga"
+                className="text-white hover:text-blue-600 font-medium"
+              >
+                Manage
+              </Link>
             </>
           )}
-          {role === "user" && (
-            <Link to="/all-manga" className="text-white hover:text-blue-600 font-medium">Browse</Link>
+          {role && (
+            <Link
+              to="/all-manga"
+              className="text-white hover:text-blue-600 font-medium"
+            >
+              Browse
+            </Link>
           )}
         </div>
 
         <div>
           {role ? (
-            <Button onClick={handleLogout} className=" text-white">Logout</Button>
+            <Button onClick={handleLogout} className=" text-white">
+              Logout
+            </Button>
           ) : (
             <Link to="/login">
               <Button className=" text-white">Login</Button>
