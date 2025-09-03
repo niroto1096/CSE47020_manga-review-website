@@ -9,15 +9,10 @@ import {
   TabsContent,
 } from '@/components/ui/tabs';
 
-import ReviewForm from '@/components/ui/ReviewForm';
-import axios from 'axios';
-
 const Details = () => {
   const { id } = useParams();
   const [manga, setManga] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [reviews, setReviews] = useState([]);
-  const [reviewsLoading, setReviewsLoading] = useState(true);
 
   useEffect(() => {
     const fetchManga = async () => {
@@ -32,25 +27,6 @@ const Details = () => {
     };
     fetchManga();
   }, [id]);
-
-  useEffect(() => {
-    const fetchReviews = async () => {
-      setReviewsLoading(true);
-      try {
-        const res = await axios.get(`/api/reviews/${id}`);
-        setReviews(res.data);
-      } catch (err) {
-        setReviews([]);
-      } finally {
-        setReviewsLoading(false);
-      }
-    };
-    fetchReviews();
-  }, [id]);
-
-  const handleReviewAdded = () => {
-    axios.get(`/api/reviews/${id}`).then(res => setReviews(res.data));
-  };
 
   if (loading) {
     return (
@@ -79,6 +55,7 @@ const Details = () => {
       <div className="max-w-6xl mx-auto mb-8">
         <div className="flex gap-6 border-b border-gray-700 text-sm">
           <div className="pb-2 border-b-2 border-blue-600 font-semibold">OVERVIEW</div>
+         
         </div>
       </div>
 
@@ -153,27 +130,8 @@ const Details = () => {
           </TabsContent>
 
           <TabsContent value="comments">
-            <div className="bg-[#1e1e1e] p-6 rounded-lg text-gray-400">
-              <h2 className="text-lg font-semibold mb-4 text-white">Reviews</h2>
-              <ReviewForm mangaId={id} onReviewAdded={handleReviewAdded} />
-              {reviewsLoading ? (
-                <p>Loading reviews...</p>
-              ) : reviews.length === 0 ? (
-                <p className="italic">No reviews yet. Be the first to review!</p>
-              ) : (
-                <ul className="space-y-4">
-                  {reviews.map(r => (
-                    <li key={r._id} className="border-b border-gray-700 pb-2">
-                      <div className="flex items-center gap-2">
-                        <span className="font-bold text-blue-400">{r.user?.username || 'Anonymous'}</span>
-                        <span className="text-yellow-400">★ {r.rating}</span>
-                      </div>
-                      <div className="mt-1 text-gray-200">{r.comment}</div>
-                      <div className="text-xs text-gray-500">{new Date(r.createdAt).toLocaleString()}</div>
-                    </li>
-                  ))}
-                </ul>
-              )}
+            <div className="bg-[#1e1e1e] p-6 rounded-lg text-gray-400 italic">
+              No comments yet. Be the first to comment!
             </div>
           </TabsContent>
         </Tabs>
