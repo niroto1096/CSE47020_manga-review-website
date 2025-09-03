@@ -1,27 +1,31 @@
-import React, { useContext, useState } from "react"
-import { Input } from "@/components/ui/input"
-import { Button } from "@/components/ui/button"
-import { logIn } from "@/Api/authApi"
-import { Link, useNavigate } from "react-router-dom"
-import { UserContext } from "@/Context/UserContext"
+import React, { useContext, useState } from "react";
+import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
+import { logIn } from "@/Api/authApi";
+import { Link, useNavigate } from "react-router-dom";
+import { UserContext } from "@/Context/UserContext";
 
 const Login = () => {
-  const [email, setEmail] = useState("")
-  const [password, setPassword] = useState("")
-  const {setRole} = useContext(UserContext)
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const { setRole } = useContext(UserContext);
   const navigate = useNavigate();
-  const handleLogin = async(e) => {
-    e.preventDefault()
+  const handleLogin = async (e) => {
+    e.preventDefault();
 
-    try{
-        const response = await logIn(email,password)
-        localStorage.setItem('role',response.data.user.role)
-        console.log(response)
-        navigate('/')
-    }catch(error){
-        console.log(error)
+    try {
+      const response = await logIn(email, password);
+      localStorage.setItem("role", response.data.user.role);
+      // Save userId (the MongoDB _id)
+      localStorage.setItem("userId", response.data.user._id);
+
+      console.log("Logged in user:", response.data.user);
+      console.log(response);
+      navigate("/");
+    } catch (error) {
+      console.log(error);
     }
-  }
+  };
 
   return (
     <div className="min-h-screen flex items-center justify-center px-4">
@@ -51,11 +55,13 @@ const Login = () => {
           Login
         </Button>
 
-        <p>Need an account? <Link to='/registration'>Create</Link></p>
+        <p>
+          Need an account? <Link to="/registration">Create</Link>
+        </p>
       </form>
     </div>
-  )
-}
+  );
+};
 
-export default Login
+export default Login;
 

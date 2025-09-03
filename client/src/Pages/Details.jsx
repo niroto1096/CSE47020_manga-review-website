@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { useParams } from "react-router-dom";
-import { getMangaById } from "@/Api/mangaApi";
+import { getMangaById, addRating, getMyRating } from "@/Api/mangaApi";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 
@@ -16,18 +16,38 @@ const Details = () => {
   // status state
   const [status, setStatus] = useState("Plan to Read");
 
+  // rating state (user’s star selection: 1..5)
+  const [myRating, setMyRating] = useState(0);
+
+  // fetch helper so we can refresh after rating
+  const fetchManga = async () => {
+    const res = await getMangaById(id);
+    setManga(res.data);
+  };
+
   useEffect(() => {
-    const fetchManga = async () => {
+    setLoading(true);
+    (async () => {
       try {
-        const res = await getMangaById(id);
-        setManga(res.data);
+        // 1) load manga
+        await fetchManga();
+
+        // 2) load user's previous rating (if logged in)
+        const userId = localStorage.getItem("userId");
+        if (userId) {
+          const { data } = await getMyRating(id, userId);
+          // data.score is on 1..10 → convert to 1..5 stars
+          const stars = data?.score ? Math.round(Number(data.score) / 2) : 0;
+          setMyRating(stars);
+        } else {
+          setMyRating(0);
+        }
       } catch (err) {
-        console.error("Failed to fetch manga:", err);
+        console.error("Failed to fetch manga or my rating:", err);
       } finally {
         setLoading(false);
       }
-    };
-    fetchManga();
+    })();
   }, [id]);
 
   const handleAddComment = () => {
@@ -36,12 +56,62 @@ const Details = () => {
     setComment("");
   };
 
-  const handleReact = (index) => {
-    setComments((prev) =>
-      prev.map((c, i) =>
-        i === index ? { ...c, reactions: c.reactions + 1 } : c
-      )
-    );
+  // Like reaction on a comment (not star rating)
+  const handleReact = async (index) => {
+    try {
+      // This is just demo UI behavior for local comments list
+      setComments((prev) =>
+        prev.map((c, i) =>
+          i === index ? { ...c, reactions: (c.reactions || 0) + 1 } : c
+        )
+      );
+    } catch (err) {
+      console.error("Failed to add reaction:", err);
+    }
+  };
+
+  // Star rating: save user’s rating (1..5 stars -> 2..10 score)
+  const handleStarClick = async (star) => {
+    try {
+      setMyRating(star); // immediate UI feedback
+
+      const userId = localStorage.getItem("userId");
+      if (!userId) {
+        console.error(
+          "No logged-in user ID found. Ensure you save it at login."
+        );
+        return;
+      }
+
+      const score = star * 2; // map 1..5 -> 2..10
+
+      // Submit to backend
+      const { data } = await addRating(id, { userId, rating: score });
+
+      // Prefer server truth if returned
+      if (data?.manga) {
+        setManga(data.manga);
+      } else {
+        // Fallback: optimistic average if server didn't return updated doc
+        setManga((prev) => {
+          if (!prev) return prev;
+          const prevAvg = Number(prev.rating ?? 0);
+          const prevCount = Number(prev.numRatings ?? 0);
+          const newCount = prevCount + 1;
+          const newAvg = (prevAvg * prevCount + score) / newCount;
+          return {
+            ...prev,
+            rating: Number(newAvg.toFixed(2)),
+            numRatings: newCount,
+          };
+        });
+      }
+
+      // Finalize by refreshing from the server to ensure exact numbers (handles re-rating too)
+      await fetchManga();
+    } catch (err) {
+      console.error("Failed to submit rating:", err);
+    }
   };
 
   if (loading) {
@@ -107,13 +177,17 @@ const Details = () => {
               <span
                 key={i}
                 className="bg-gray-700 px-3 py-1 rounded-full text-xs"
-              >{`Genre ${tag}`}</span>
+              >
+                {`Genre ${tag}`}
+              </span>
             ))}
             {(manga.theme || []).map((tag, i) => (
               <span
                 key={i}
                 className="bg-gray-700 px-3 py-1 rounded-full text-xs"
-              >{`Theme ${tag}`}</span>
+              >
+                {`Theme ${tag}`}
+              </span>
             ))}
           </div>
 
@@ -132,6 +206,28 @@ const Details = () => {
               <option value="Completed">Completed</option>
               <option value="Plan to Read">Plan to Read</option>
             </select>
+          </div>
+
+          {/* Star Rating */}
+          <div className="mt-6 text-sm">
+            <label className="mr-2">My Rating:</label>
+            <div className="flex gap-1">
+              {[1, 2, 3, 4, 5].map((star) => (
+                <button
+                  key={star}
+                  onClick={() => handleStarClick(star)}
+                  className="text-2xl focus:outline-none"
+                  title={`${star}/5 (= ${star * 2}/10)`}
+                >
+                  {star <= myRating ? "⭐" : "☆"}
+                </button>
+              ))}
+            </div>
+            {myRating > 0 && (
+              <p className="text-gray-400 mt-1">
+                You rated this {myRating}/5 ({myRating * 2}/10)
+              </p>
+            )}
           </div>
         </div>
       </div>
@@ -152,7 +248,7 @@ const Details = () => {
 
           <TabsContent value="comments">
             <div className="bg-[#1e1e1e] p-6 rounded-lg text-gray-200">
-              {/* Existing comments */}
+              {/* Existing comments (local demo list) */}
               {comments.length === 0 ? (
                 <p className="text-gray-400 italic mb-4">
                   No comments yet. Be the first to comment!
@@ -185,7 +281,7 @@ const Details = () => {
                   onChange={(e) => setComment(e.target.value)}
                   onKeyDown={(e) => {
                     if (e.key === "Enter") {
-                      e.preventDefault(); // prevent form submission / line break
+                      e.preventDefault();
                       handleAddComment();
                     }
                   }}

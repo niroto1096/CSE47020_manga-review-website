@@ -36,8 +36,7 @@ try {
   // If your backend returns an array directly:
   manga = (res.data || []).filter((m) => m.featured === true);
 
-  console.log("Featured Manga:", featuredManga);
-  setManga(featuredManga); // if you're using state
+  console.log("Featured Manga:", manga);
 } catch (error) {
   console.error("Failed to fetch manga:", error);
 }
