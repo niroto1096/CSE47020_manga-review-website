@@ -8,7 +8,14 @@ const mangaSchema = new mongoose.Schema(
     details: { type: String, required: true },
     genre: [{ type: String, required: true }],
     theme: [{ type: String }],
-    rating: { type: Number, default: 0 },
+    rating: { type: Number, default: 0 }, // average rating
+    numRatings: { type: Number, default: 0 }, // number of ratings
+    raters: [
+      {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "users", // users who rated
+      },
+    ],
     author: { type: String, required: true },
     synopsis: { type: String },
     release_year: { type: String },

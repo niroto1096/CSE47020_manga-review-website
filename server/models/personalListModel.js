@@ -14,7 +14,7 @@ const personalListSchema = new mongoose.Schema(
     },
     status: {
       type: String,
-      enum: ["Unread", "Reading", "Completed", "Dropped", "On-Hold", "Planned"],
+      enum: ["Reading", "Completed", "Planned", "Unread"],
       default: "Unread",
     },
   },

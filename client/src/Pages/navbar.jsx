@@ -35,6 +35,7 @@ const Navbar = () => {
           <Link to="/" className="text-white hover:text-blue-600 font-medium">
             Home
           </Link>
+
           {role === "admin" && (
             <>
               <Link
@@ -51,13 +52,22 @@ const Navbar = () => {
               </Link>
             </>
           )}
+
           {role && (
-            <Link
-              to="/all-manga"
-              className="text-white hover:text-blue-600 font-medium"
-            >
-              Browse
-            </Link>
+            <>
+              <Link
+                to="/all-manga"
+                className="text-white hover:text-blue-600 font-medium"
+              >
+                Browse
+              </Link>
+              <Link
+                to="/profile"
+                className="text-white hover:text-blue-600 font-medium"
+              >
+                Profile
+              </Link>
+            </>
           )}
         </div>
 

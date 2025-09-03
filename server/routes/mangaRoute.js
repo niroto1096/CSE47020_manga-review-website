@@ -8,7 +8,17 @@ const {
   addRating,
   getMyRating,
 } = require("../controllers/mangaController");
+const {
+  addComment,
+  listComments,
+  toggleReaction,
+} = require("../controllers/commentController");
 const upload = require("../middlewares/multer");
+const {
+  updatePersonalList,
+  getStatus,
+  getList,
+} = require("../controllers/pListController");
 
 const router = express.Router();
 
@@ -19,4 +29,13 @@ router.put("/update-manga/:id", updateManga);
 router.get("/get-manga-by-id/:id", getMangaById);
 router.post("/add-rating/:id", addRating);
 router.get("/my-rating/:id", getMyRating);
+router.post("/add-comment", addComment);
+// list comments: GET /comments?mangaId=...
+router.get("/comments", listComments);
+router.post("/personal-list/update", updatePersonalList);
+router.get("/personal-list/status", getStatus);
+router.get("/personal-list", getList);
+
+// toggle like: POST /comments/:id/react
+router.post("/comments/:id/react", toggleReaction);
 module.exports = router;

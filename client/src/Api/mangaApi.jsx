@@ -37,3 +37,25 @@ export const updateManga = (id, status) =>
 
 export const getMyRating = (mangaId, userId) =>
   API.get(`/my-rating/${mangaId}`, { params: { userId } });
+
+export const addCommentApi = (mangaId, comment, userId) =>
+  API.post("/add-comment", { mangaId, comment, userId });
+
+export const getCommentsApi = (mangaId, page = 1, limit = 20) =>
+  API.get(`/comments`, { params: { mangaId, page, limit } });
+
+export const reactCommentApi = (commentId, userId) =>
+  API.post(`/comments/${commentId}/react`, { userId }); // if no auth middleware yet
+
+// Create or update a user's status for a manga
+export const updatePersonalListStatus = (userId, mangaId, status) =>
+  API.post("/personal-list/update", { userId, mangaId, status });
+
+// Get the current status for a user + manga
+// (Assumes you added a GET controller like /personal-list/status)
+export const getPersonalListStatus = (userId, mangaId) =>
+  API.get("/personal-list/status", { params: { userId, mangaId } });
+
+// Optional: fetch paginated personal list for a user
+export const getMyPersonalList = (userId, page = 1, limit = 20, status) =>
+  API.get("/personal-list", { params: { userId, page, limit, status } });

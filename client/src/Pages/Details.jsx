@@ -1,28 +1,37 @@
 import React, { useEffect, useState } from "react";
 import { useParams } from "react-router-dom";
-import { getMangaById, addRating, getMyRating } from "@/Api/mangaApi";
+import {
+  getMangaById,
+  addRating,
+  getMyRating,
+  getPersonalListStatus,
+  updatePersonalListStatus,
+} from "@/Api/mangaApi";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import RatingStars from "@/components/RatingStars";
+import CommentsPanel from "@/components/CommentsPanel";
+
+const IMAGE_BASE =
+  import.meta.env.VITE_API_URL?.replace(/\/+$/, "") || "http://localhost:8000";
 
 const Details = () => {
   const { id } = useParams();
   const [manga, setManga] = useState(null);
   const [loading, setLoading] = useState(true);
 
-  // comment states
-  const [comment, setComment] = useState("");
-  const [comments, setComments] = useState([]);
+  // personal reading status
+  const [status, setStatus] = useState("Unread");
 
-  // status state
-  const [status, setStatus] = useState("Plan to Read");
-
-  // rating state (user’s star selection: 1..5)
+  // rating (stars: 1..5)
   const [myRating, setMyRating] = useState(0);
 
-  // fetch helper so we can refresh after rating
+  // fetch manga helper
   const fetchManga = async () => {
     const res = await getMangaById(id);
-    setManga(res.data);
+    // Accept both shapes: { data: { ...doc } } or { data: { manga: doc } }
+    const doc = res?.data?.manga || res?.data;
+    setManga(doc);
   };
 
   useEffect(() => {
@@ -32,67 +41,58 @@ const Details = () => {
         // 1) load manga
         await fetchManga();
 
-        // 2) load user's previous rating (if logged in)
+        // 2) user context
         const userId = localStorage.getItem("userId");
+
+        // 3) load user's previous rating
         if (userId) {
-          const { data } = await getMyRating(id, userId);
-          // data.score is on 1..10 → convert to 1..5 stars
-          const stars = data?.score ? Math.round(Number(data.score) / 2) : 0;
-          setMyRating(stars);
+          try {
+            const { data } = await getMyRating(id, userId);
+            const stars = data?.score ? Math.round(Number(data.score) / 2) : 0; // 1..10 → 1..5
+            setMyRating(stars);
+          } catch (e) {
+            console.warn("No prior rating or rating endpoint issue:", e);
+            setMyRating(0);
+          }
+
+          // 4) load user's saved reading status (if GET endpoint available)
+          try {
+            const res = await getPersonalListStatus(userId, id);
+            const saved = res?.data?.data?.status || res?.data?.status;
+            if (saved) setStatus(saved);
+          } catch (e) {
+            // If not implemented yet, keep default
+            // console.warn("Status fetch failed:", e);
+          }
         } else {
           setMyRating(0);
         }
       } catch (err) {
-        console.error("Failed to fetch manga or my rating:", err);
+        console.error("Failed to fetch manga or user context:", err);
       } finally {
         setLoading(false);
       }
     })();
   }, [id]);
 
-  const handleAddComment = () => {
-    if (comment.trim() === "") return;
-    setComments((prev) => [...prev, { text: comment.trim(), reactions: 0 }]);
-    setComment("");
-  };
-
-  // Like reaction on a comment (not star rating)
-  const handleReact = async (index) => {
-    try {
-      // This is just demo UI behavior for local comments list
-      setComments((prev) =>
-        prev.map((c, i) =>
-          i === index ? { ...c, reactions: (c.reactions || 0) + 1 } : c
-        )
-      );
-    } catch (err) {
-      console.error("Failed to add reaction:", err);
-    }
-  };
-
-  // Star rating: save user’s rating (1..5 stars -> 2..10 score)
+  // Star rating: save (1..5 stars -> 2..10 score)
   const handleStarClick = async (star) => {
     try {
-      setMyRating(star); // immediate UI feedback
-
+      setMyRating(star); // optimistic UI
       const userId = localStorage.getItem("userId");
       if (!userId) {
-        console.error(
-          "No logged-in user ID found. Ensure you save it at login."
-        );
+        console.error("No logged-in user ID found.");
         return;
       }
 
-      const score = star * 2; // map 1..5 -> 2..10
-
-      // Submit to backend
+      const score = star * 2; // 1..5 → 2..10
       const { data } = await addRating(id, { userId, rating: score });
 
-      // Prefer server truth if returned
+      // If server returns updated doc, trust it
       if (data?.manga) {
         setManga(data.manga);
       } else {
-        // Fallback: optimistic average if server didn't return updated doc
+        // fallback optimistic recompute
         setManga((prev) => {
           if (!prev) return prev;
           const prevAvg = Number(prev.rating ?? 0);
@@ -107,10 +107,30 @@ const Details = () => {
         });
       }
 
-      // Finalize by refreshing from the server to ensure exact numbers (handles re-rating too)
+      // refresh to get exact aggregates (handles re-rating)
       await fetchManga();
     } catch (err) {
       console.error("Failed to submit rating:", err);
+    }
+  };
+
+  // Personal list: change status (create or update)
+  const handleStatusChange = async (e) => {
+    const next = e.target.value;
+    setStatus(next); // optimistic
+    const userId = localStorage.getItem("userId");
+    if (!userId) {
+      console.warn(
+        "No userId in localStorage; cannot save personal list status."
+      );
+      return;
+    }
+    try {
+      await updatePersonalListStatus(userId, id, next);
+    } catch (err) {
+      console.error("Failed to update personal list status:", err);
+      // Optional rollback if you want:
+      // setStatus(prev => prev);
     }
   };
 
@@ -142,7 +162,7 @@ const Details = () => {
         {/* Left: Cover Image */}
         <div className="md:w-1/4 w-full">
           <img
-            src={`http://localhost:8000/${manga.image}`}
+            src={`${IMAGE_BASE}/${manga.image}`}
             alt={manga.title}
             className="rounded-lg object-cover w-full"
           />
@@ -155,13 +175,16 @@ const Details = () => {
               <strong>Ch:</strong> {manga.chapter || "N/A"}
             </p>
             <p>
-              <strong>Volume:</strong> {manga.volume}
+              <strong>Volume:</strong> {manga.volume ?? "N/A"}
             </p>
             <p>
               <strong>Year:</strong> {manga.release_year || "N/A"}
             </p>
             <p>
-              <strong>⭐</strong> {manga.rating || 0}/10
+              <strong>⭐</strong> {manga.rating ?? 0}/10
+              {typeof manga.numRatings !== "undefined" && (
+                <span className="text-gray-500"> ({manga.numRatings})</span>
+              )}
             </p>
             <p>
               <strong>Rank:</strong> #{manga.rank || "N/A"}
@@ -175,7 +198,7 @@ const Details = () => {
           <div className="flex flex-wrap gap-2 mt-4">
             {(manga.genre || []).map((tag, i) => (
               <span
-                key={i}
+                key={`g-${i}`}
                 className="bg-gray-700 px-3 py-1 rounded-full text-xs"
               >
                 {`Genre ${tag}`}
@@ -183,7 +206,7 @@ const Details = () => {
             ))}
             {(manga.theme || []).map((tag, i) => (
               <span
-                key={i}
+                key={`t-${i}`}
                 className="bg-gray-700 px-3 py-1 rounded-full text-xs"
               >
                 {`Theme ${tag}`}
@@ -191,7 +214,7 @@ const Details = () => {
             ))}
           </div>
 
-          {/* Status Dropdown */}
+          {/* Personal Status Dropdown */}
           <div className="mt-6 text-sm">
             <label htmlFor="mangaStatus" className="mr-2">
               My Status:
@@ -199,36 +222,18 @@ const Details = () => {
             <select
               id="mangaStatus"
               value={status}
-              onChange={(e) => setStatus(e.target.value)}
+              onChange={handleStatusChange}
               className="bg-gray-800 text-white px-2 py-1 rounded border border-gray-600"
             >
               <option value="Reading">Reading</option>
               <option value="Completed">Completed</option>
-              <option value="Plan to Read">Plan to Read</option>
+              <option value="Planned">Planned</option>
+              <option value="Unread">Unread</option>
             </select>
           </div>
 
           {/* Star Rating */}
-          <div className="mt-6 text-sm">
-            <label className="mr-2">My Rating:</label>
-            <div className="flex gap-1">
-              {[1, 2, 3, 4, 5].map((star) => (
-                <button
-                  key={star}
-                  onClick={() => handleStarClick(star)}
-                  className="text-2xl focus:outline-none"
-                  title={`${star}/5 (= ${star * 2}/10)`}
-                >
-                  {star <= myRating ? "⭐" : "☆"}
-                </button>
-              ))}
-            </div>
-            {myRating > 0 && (
-              <p className="text-gray-400 mt-1">
-                You rated this {myRating}/5 ({myRating * 2}/10)
-              </p>
-            )}
-          </div>
+          <RatingStars value={myRating} onSelect={handleStarClick} />
         </div>
       </div>
 
@@ -247,54 +252,7 @@ const Details = () => {
           </TabsContent>
 
           <TabsContent value="comments">
-            <div className="bg-[#1e1e1e] p-6 rounded-lg text-gray-200">
-              {/* Existing comments (local demo list) */}
-              {comments.length === 0 ? (
-                <p className="text-gray-400 italic mb-4">
-                  No comments yet. Be the first to comment!
-                </p>
-              ) : (
-                <ul className="space-y-2 mb-4">
-                  {comments.map((c, i) => (
-                    <li
-                      key={i}
-                      className="bg-gray-800 px-3 py-2 rounded-md flex items-center justify-between"
-                    >
-                      <span>{c.text}</span>
-                      <button
-                        onClick={() => handleReact(i)}
-                        className="flex items-center gap-1 text-sm text-blue-400 hover:text-blue-500"
-                      >
-                        👍 {c.reactions}
-                      </button>
-                    </li>
-                  ))}
-                </ul>
-              )}
-
-              {/* Input field */}
-              <div className="flex gap-2">
-                <input
-                  type="text"
-                  placeholder="Write a comment..."
-                  value={comment}
-                  onChange={(e) => setComment(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter") {
-                      e.preventDefault();
-                      handleAddComment();
-                    }
-                  }}
-                  className="flex-1 px-3 py-2 rounded bg-gray-900 border border-gray-700 text-sm text-white focus:outline-none focus:ring-2 focus:ring-blue-600"
-                />
-                <button
-                  onClick={handleAddComment}
-                  className="px-4 py-2 bg-blue-600 rounded text-sm font-semibold hover:bg-blue-700"
-                >
-                  Post
-                </button>
-              </div>
-            </div>
+            <CommentsPanel mangaId={id} />
           </TabsContent>
         </Tabs>
       </div>

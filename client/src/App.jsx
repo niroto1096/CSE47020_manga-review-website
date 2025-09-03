@@ -15,7 +15,7 @@ import AllManga from "./Pages/AllManga";
 import UploadManga from "./Pages/uploadManga";
 import UserManga from "./Pages/userManga";
 import Details from "./Pages/Details";
-
+import Profile from "./Pages/Profile";
 import "slick-carousel/slick/slick.css";
 import "slick-carousel/slick/slick-theme.css";
 
@@ -93,6 +93,14 @@ function AppRoutes() {
         element={
           <ProtectedRoute role={["user", "admin"]}>
             <UserManga />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/profile"
+        element={
+          <ProtectedRoute role={["user", "admin"]}>
+            <Profile />
           </ProtectedRoute>
         }
       />

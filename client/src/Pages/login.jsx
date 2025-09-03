@@ -18,6 +18,7 @@ const Login = () => {
       localStorage.setItem("role", response.data.user.role);
       // Save userId (the MongoDB _id)
       localStorage.setItem("userId", response.data.user._id);
+      localStorage.setItem("username", response.data.user.name);
 
       console.log("Logged in user:", response.data.user);
       console.log(response);
@@ -64,4 +65,3 @@ const Login = () => {
 };
 
 export default Login;
-

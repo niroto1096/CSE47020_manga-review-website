@@ -1,0 +1,28 @@
+import React from "react";
+
+const RatingStars = ({ value = 0, onSelect }) => {
+  return (
+    <div className="mt-6 text-sm">
+      <label className="mr-2">My Rating:</label>
+      <div className="flex gap-1">
+        {[1, 2, 3, 4, 5].map((star) => (
+          <button
+            key={star}
+            onClick={() => onSelect?.(star)}
+            className="text-2xl focus:outline-none"
+            title={`${star}/5 (= ${star * 2}/10)`}
+          >
+            {star <= value ? "⭐" : "☆"}
+          </button>
+        ))}
+      </div>
+      {value > 0 && (
+        <p className="text-gray-400 mt-1">
+          You rated this {value}/5 ({value * 2}/10)
+        </p>
+      )}
+    </div>
+  );
+};
+
+export default RatingStars;
