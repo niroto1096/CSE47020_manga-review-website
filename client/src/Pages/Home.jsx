@@ -1,9 +1,13 @@
+// src/pages/Home.jsx
 import React, { useEffect, useState } from "react";
 import Slider from "react-slick";
 import "slick-carousel/slick/slick.css";
 import "slick-carousel/slick/slick-theme.css";
 import { getAllManga } from "@/Api/mangaApi";
 import { useNavigate } from "react-router-dom";
+
+const IMAGE_BASE =
+  import.meta.env.VITE_API_URL?.replace(/\/+$/, "") || "http://localhost:8000";
 
 const banners = [
   {
@@ -12,7 +16,7 @@ const banners = [
     subtext:
       "Read from a vast collection of top-rated stories around the world.",
     image:
-      "https://images-wixmp-ed30a86b8c4ca887773594c2.wixmp.com/f/cc04221c-9aea-41f1-9f43-5733e880b205/dg2qfjb-dad36763-4d94-42de-aefb-bb7c609a8089.png/v1/fill/w_1280,h_720,q_80,strp/banner_anime___gojo_satoru_by_skurtdzn_dg2qfjb-fullview.jpg",
+      "https://pbs.twimg.com/media/GoFW54gWgAA-Ls0?format=jpg&name=4096x4096",
   },
   {
     id: 2,
@@ -32,7 +36,6 @@ const banners = [
 const Home = () => {
   const navigate = useNavigate();
 
-  const [allManga, setAllManga] = useState([]);
   const [featured, setFeatured] = useState([]);
   const [recommended, setRecommended] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -42,10 +45,11 @@ const Home = () => {
       try {
         const res = await getAllManga("");
         const list = res?.data?.manga || res?.data || [];
-        setAllManga(list);
 
+        // Featured on the sidebar
         setFeatured(list.filter((m) => m.featured === true));
 
+        // Recommended: Top 5 by rating (desc)
         const top5 = [...list]
           .sort((a, b) => Number(b.rating || 0) - Number(a.rating || 0))
           .slice(0, 5);
@@ -73,6 +77,7 @@ const Home = () => {
     navigate(`/manga-detail/${id}`);
   };
 
+  // Small horizontal card (Featured)
   const Card = ({ m }) => (
     <div
       key={m._id || m.id}
@@ -80,7 +85,7 @@ const Home = () => {
       onClick={() => handleNavigate(m._id || m.id)}
     >
       <img
-        src={`http://localhost:8000/${m.image}`}
+        src={`${IMAGE_BASE}/${m.image}`}
         alt={m.title}
         className="w-24 h-24 object-cover"
       />
@@ -94,9 +99,31 @@ const Home = () => {
     </div>
   );
 
+  // Bigger vertical card (Recommended)
+  const BigCard = ({ m }) => (
+    <div
+      key={m._id || m.id}
+      className="bg-gray-800 rounded-lg shadow-lg overflow-hidden cursor-pointer hover:bg-gray-700 transition"
+      onClick={() => handleNavigate(m._id || m.id)}
+    >
+      <img
+        src={`${IMAGE_BASE}/${m.image}`}
+        alt={m.title}
+        className="w-full h-60 object-cover"
+      />
+      <div className="p-4">
+        <h3 className="text-lg font-bold leading-tight line-clamp-2">
+          {m.title}
+        </h3>
+        <p className="text-sm text-gray-300">{m.author || "Unknown"}</p>
+        <p className="text-sm text-gray-400 mt-1">⭐ {m.rating ?? 0}/10</p>
+      </div>
+    </div>
+  );
+
   return (
     <div className="w-full min-h-screen bg-gray-900 text-white pt-24 px-4 overflow-hidden">
-      {/* Top Layout: Slider + Sidebar */}
+      {/* Top: Slider + Featured Sidebar */}
       <div className="flex flex-col md:flex-row gap-8">
         {/* Left: Hero Slider */}
         <div className="md:w-2/3">
@@ -154,17 +181,17 @@ const Home = () => {
       <div className="mt-10 max-w-6xl mx-auto">
         <h2 className="text-2xl font-bold mb-4">Recommended • Top 5</h2>
         {loading ? (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            <div className="h-32 bg-gray-800 animate-pulse rounded" />
-            <div className="h-32 bg-gray-800 animate-pulse rounded" />
-            <div className="h-32 bg-gray-800 animate-pulse rounded" />
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6">
+            <div className="h-80 bg-gray-800 animate-pulse rounded" />
+            <div className="h-80 bg-gray-800 animate-pulse rounded" />
+            <div className="h-80 bg-gray-800 animate-pulse rounded" />
           </div>
         ) : recommended.length === 0 ? (
           <p className="text-gray-400">No recommendations yet.</p>
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6">
             {recommended.map((m) => (
-              <Card key={`rec-${m._id || m.id}`} m={m} />
+              <BigCard key={`rec-${m._id || m.id}`} m={m} />
             ))}
           </div>
         )}
