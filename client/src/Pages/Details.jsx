@@ -1,18 +1,20 @@
-import React, { useEffect, useState } from 'react';
-import { useParams } from 'react-router-dom';
-import { getMangaById } from '@/Api/mangaApi';
-import { Skeleton } from '@/components/ui/skeleton';
-import {
-  Tabs,
-  TabsList,
-  TabsTrigger,
-  TabsContent,
-} from '@/components/ui/tabs';
+import React, { useEffect, useState } from "react";
+import { useParams } from "react-router-dom";
+import { getMangaById } from "@/Api/mangaApi";
+import { Skeleton } from "@/components/ui/skeleton";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 
 const Details = () => {
   const { id } = useParams();
   const [manga, setManga] = useState(null);
   const [loading, setLoading] = useState(true);
+
+  // comment states
+  const [comment, setComment] = useState("");
+  const [comments, setComments] = useState([]);
+
+  // status state
+  const [status, setStatus] = useState("Plan to Read");
 
   useEffect(() => {
     const fetchManga = async () => {
@@ -20,13 +22,27 @@ const Details = () => {
         const res = await getMangaById(id);
         setManga(res.data);
       } catch (err) {
-        console.error('Failed to fetch manga:', err);
+        console.error("Failed to fetch manga:", err);
       } finally {
         setLoading(false);
       }
     };
     fetchManga();
   }, [id]);
+
+  const handleAddComment = () => {
+    if (comment.trim() === "") return;
+    setComments((prev) => [...prev, { text: comment.trim(), reactions: 0 }]);
+    setComment("");
+  };
+
+  const handleReact = (index) => {
+    setComments((prev) =>
+      prev.map((c, i) =>
+        i === index ? { ...c, reactions: c.reactions + 1 } : c
+      )
+    );
+  };
 
   if (loading) {
     return (
@@ -38,9 +54,7 @@ const Details = () => {
   }
 
   if (!manga) {
-    return (
-      <p className="text-center mt-10 text-gray-500">Manga not found.</p>
-    );
+    return <p className="text-center mt-10 text-gray-500">Manga not found.</p>;
   }
 
   return (
@@ -48,15 +62,9 @@ const Details = () => {
       {/* Header */}
       <div className="max-w-6xl mx-auto mb-6">
         <h1 className="text-4xl font-bold">{manga.title}</h1>
-        <p className="text-gray-400 text-sm italic">Author: {manga.author || 'N/A'}</p>
-      </div>
-
-      {/* Tab Bar (Placeholder style) */}
-      <div className="max-w-6xl mx-auto mb-8">
-        <div className="flex gap-6 border-b border-gray-700 text-sm">
-          <div className="pb-2 border-b-2 border-blue-600 font-semibold">OVERVIEW</div>
-         
-        </div>
+        <p className="text-gray-400 text-sm italic">
+          Author: {manga.author || "N/A"}
+        </p>
       </div>
 
       {/* Main Section */}
@@ -73,44 +81,57 @@ const Details = () => {
         {/* Right: Info Section */}
         <div className="md:w-3/4 w-full space-y-4">
           <div className="flex flex-wrap gap-4 text-sm text-gray-300">
-            <p><strong>Ch:</strong> {manga.chapter || 'N/A'}</p>
-            <p><strong>Volume:</strong> {manga.volume}</p>
-            <p><strong>Year:</strong> {manga.release_year || 'N/A'}</p>
-            <p><strong>⭐</strong> {manga.rating || 0}/10</p>
-            <p><strong>Rank:</strong> #{manga.rank || 'N/A'}</p>
+            <p>
+              <strong>Ch:</strong> {manga.chapter || "N/A"}
+            </p>
+            <p>
+              <strong>Volume:</strong> {manga.volume}
+            </p>
+            <p>
+              <strong>Year:</strong> {manga.release_year || "N/A"}
+            </p>
+            <p>
+              <strong>⭐</strong> {manga.rating || 0}/10
+            </p>
+            <p>
+              <strong>Rank:</strong> #{manga.rank || "N/A"}
+            </p>
           </div>
 
-          {/* Synopsis preview */}
           <p className="text-gray-300 text-sm leading-relaxed">
             {manga.synopsis}
           </p>
 
-          {/* Tags */}
           <div className="flex flex-wrap gap-2 mt-4">
             {(manga.genre || []).map((tag, i) => (
-              <span key={i} className="bg-gray-700 px-3 py-1 rounded-full text-xs">{`Genre ${tag}`}</span>
+              <span
+                key={i}
+                className="bg-gray-700 px-3 py-1 rounded-full text-xs"
+              >{`Genre ${tag}`}</span>
             ))}
             {(manga.theme || []).map((tag, i) => (
-              <span key={i} className="bg-gray-700 px-3 py-1 rounded-full text-xs">{`Theme ${tag}`}</span>
+              <span
+                key={i}
+                className="bg-gray-700 px-3 py-1 rounded-full text-xs"
+              >{`Theme ${tag}`}</span>
             ))}
           </div>
 
-          {/* Dropdown (mock) */}
+          {/* Status Dropdown */}
           <div className="mt-6 text-sm">
-            <label htmlFor="mangaStatus" className="mr-2">MY MANGA:</label>
+            <label htmlFor="mangaStatus" className="mr-2">
+              My Status:
+            </label>
             <select
               id="mangaStatus"
+              value={status}
+              onChange={(e) => setStatus(e.target.value)}
               className="bg-gray-800 text-white px-2 py-1 rounded border border-gray-600"
             >
-              <option>Unread</option>
-              <option>Reading</option>
-              <option>Completed</option>
+              <option value="Reading">Reading</option>
+              <option value="Completed">Completed</option>
+              <option value="Plan to Read">Plan to Read</option>
             </select>
-          </div>
-
-          {/* Stats */}
-          <div className="mt-6 text-sm text-gray-400">
-            <p><strong>User Stats:</strong> 4,490 users are tracking this.</p>
           </div>
         </div>
       </div>
@@ -125,13 +146,58 @@ const Details = () => {
 
           <TabsContent value="synopsis">
             <div className="bg-[#1e1e1e] p-6 rounded-lg text-gray-200 leading-relaxed">
-              {manga.details || 'No synopsis available.'}
+              {manga.details || "No synopsis available."}
             </div>
           </TabsContent>
 
           <TabsContent value="comments">
-            <div className="bg-[#1e1e1e] p-6 rounded-lg text-gray-400 italic">
-              No comments yet. Be the first to comment!
+            <div className="bg-[#1e1e1e] p-6 rounded-lg text-gray-200">
+              {/* Existing comments */}
+              {comments.length === 0 ? (
+                <p className="text-gray-400 italic mb-4">
+                  No comments yet. Be the first to comment!
+                </p>
+              ) : (
+                <ul className="space-y-2 mb-4">
+                  {comments.map((c, i) => (
+                    <li
+                      key={i}
+                      className="bg-gray-800 px-3 py-2 rounded-md flex items-center justify-between"
+                    >
+                      <span>{c.text}</span>
+                      <button
+                        onClick={() => handleReact(i)}
+                        className="flex items-center gap-1 text-sm text-blue-400 hover:text-blue-500"
+                      >
+                        👍 {c.reactions}
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              )}
+
+              {/* Input field */}
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  placeholder="Write a comment..."
+                  value={comment}
+                  onChange={(e) => setComment(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") {
+                      e.preventDefault(); // prevent form submission / line break
+                      handleAddComment();
+                    }
+                  }}
+                  className="flex-1 px-3 py-2 rounded bg-gray-900 border border-gray-700 text-sm text-white focus:outline-none focus:ring-2 focus:ring-blue-600"
+                />
+                <button
+                  onClick={handleAddComment}
+                  className="px-4 py-2 bg-blue-600 rounded text-sm font-semibold hover:bg-blue-700"
+                >
+                  Post
+                </button>
+              </div>
             </div>
           </TabsContent>
         </Tabs>
