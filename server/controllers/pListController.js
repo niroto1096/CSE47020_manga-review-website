@@ -62,14 +62,22 @@ const getList = async (req, res) => {
       return res.status(400).json({ message: "userId is required" });
     }
 
+    // Base query
     const query = { user: userId };
-    if (status) query.status = status;
+
+    if (status) {
+      // Explicit filter if passed in query
+      query.status = status;
+    } else {
+      // Default: exclude "Unread"
+      query.status = { $ne: "Unread" };
+    }
 
     const skip = (Number(page) - 1) * Number(limit);
 
     const [items, total] = await Promise.all([
       PersonalList.find(query)
-        .populate("manga") // optional: to return full manga details
+        .populate("manga") // returns full manga details
         .skip(skip)
         .limit(Number(limit)),
       PersonalList.countDocuments(query),
