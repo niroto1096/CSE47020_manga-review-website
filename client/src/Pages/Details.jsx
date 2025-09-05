@@ -6,6 +6,7 @@ import {
   getMyRating,
   getPersonalListStatus,
   updatePersonalListStatus,
+  getAllManga, // ⬅️ NEW
 } from "@/Api/mangaApi";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
@@ -25,7 +26,6 @@ const normalizeTags = (v) => {
   if (!v) return [];
   if (Array.isArray(v)) return v.filter(Boolean);
   if (typeof v === "string") {
-    // support "a,b,c" or "a | b | c"
     return v
       .split(/[,|]/)
       .map((s) => s.trim())
@@ -39,6 +39,10 @@ const Details = () => {
   const [manga, setManga] = useState(null);
   const [loading, setLoading] = useState(true);
 
+  // ranking state (computed)
+  const [rank, setRank] = useState(null); // e.g., 1,2,3...
+  const [totalCount, setTotalCount] = useState(0); // total mangas considered
+
   // personal reading status
   const [status, setStatus] = useState("Unread");
 
@@ -47,10 +51,41 @@ const Details = () => {
 
   const currentUserId = localStorage.getItem("userId") || null;
 
+  // fetch manga and return the doc
   const fetchManga = async () => {
     const res = await getMangaById(id);
-    const doc = res?.data?.manga || res?.data;
-    setManga(doc || null);
+    const doc = res?.data?.manga || res?.data || null;
+    setManga(doc);
+    return doc;
+  };
+
+  // compute dense rank based on rating across all mangas
+  const computeRank = async (doc) => {
+    if (!doc) return;
+    const targetScore = Number(doc.rating ?? 0);
+    if (!Number.isFinite(targetScore)) {
+      setRank(null);
+      setTotalCount(0);
+      return;
+    }
+
+    const resAll = await getAllManga("");
+    const all = resAll?.data?.manga || resAll?.data || [];
+    setTotalCount(all.length);
+
+    // Dense rank: 1 + (number of unique rating values greater than target)
+    const uniqueHigher = new Set(
+      all
+        .map((m) => Number(m?.rating ?? 0))
+        .filter((s) => Number.isFinite(s) && s > targetScore)
+    ).size;
+
+    const r = uniqueHigher + 1;
+    setRank(r);
+
+    // If you prefer competition ranking (1224), use:
+    // const higherCount = all.filter(m => Number(m?.rating ?? 0) > targetScore).length;
+    // setRank(higherCount + 1);
   };
 
   useEffect(() => {
@@ -58,9 +93,12 @@ const Details = () => {
     (async () => {
       try {
         // 1) load manga
-        await fetchManga();
+        const doc = await fetchManga();
 
-        // 2) user context: rating + personal status
+        // 2) compute rank
+        await computeRank(doc);
+
+        // 3) user context: rating + personal status
         if (currentUserId) {
           try {
             const { data } = await getMyRating(id, currentUserId);
@@ -104,24 +142,29 @@ const Details = () => {
 
       if (data?.manga) {
         setManga(data.manga);
+        await computeRank(data.manga); // recompute rank with server-updated doc
       } else {
-        // fallback optimistic recompute
+        // fallback optimistic recompute on client
         setManga((prev) => {
           if (!prev) return prev;
           const prevAvg = Number(prev.rating ?? 0);
           const prevCount = Number(prev.numRatings ?? 0);
           const newCount = prevCount + 1;
           const newAvg = (prevAvg * prevCount + score) / newCount;
-          return {
+          const next = {
             ...prev,
             rating: Number(newAvg.toFixed(2)),
             numRatings: newCount,
           };
+          // compute rank based on optimistic value
+          computeRank(next).catch(() => {});
+          return next;
         });
       }
 
-      // refresh from server (handles re-rating and aggregates)
-      await fetchManga();
+      // refresh exact aggregates from server (handles re-rating)
+      const fresh = await fetchManga();
+      await computeRank(fresh);
     } catch (err) {
       console.error("Failed to submit rating:", err);
     }
@@ -139,8 +182,6 @@ const Details = () => {
       await updatePersonalListStatus(currentUserId, id, next);
     } catch (err) {
       console.error("Failed to update personal list status:", err);
-      // optional rollback
-      // setStatus((prev) => prev);
     }
   };
 
@@ -201,7 +242,8 @@ const Details = () => {
               )}
             </p>
             <p>
-              <strong>Rank:</strong> #{manga.rank || "N/A"}
+              <strong>Rank:</strong>{" "}
+              {rank ? `#${rank} of ${totalCount || "?"}` : "N/A"}
             </p>
           </div>
 
@@ -239,7 +281,6 @@ const Details = () => {
               onChange={handleStatusChange}
               className="bg-gray-800 text-white px-2 py-1 rounded border border-gray-600"
             >
-              {/* include common aliases used elsewhere to keep data consistent */}
               <option value="Reading">Reading</option>
               <option value="Completed">Completed</option>
               <option value="Planned">Planned</option>
@@ -267,7 +308,6 @@ const Details = () => {
           </TabsContent>
 
           <TabsContent value="comments">
-            {/* pass currentUserId so backend can return userReaction in listComments */}
             <CommentsPanel mangaId={id} currentUserId={currentUserId} />
           </TabsContent>
         </Tabs>
