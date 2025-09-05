@@ -1,3 +1,4 @@
+const mongoose = require("mongoose"); // <-- add this
 const Joi = require("joi");
 const Comment = require("../models/commentsModel"); // your schema file above
 const Manga = require("../models/mangaModel"); // assume you have a Manga model
@@ -63,25 +64,110 @@ exports.addComment = async (req, res) => {
 
 exports.listComments = async (req, res) => {
   try {
-    const { mangaId, page = 1, limit = 20 } = req.query;
-    if (!mangaId)
-      return res.status(400).json({ message: "mangaId is required" });
+    const { mangaId } = req.query;
+    const rawPage = Number(req.query.page ?? 1);
+    const rawLimit = Number(req.query.limit ?? 20);
 
-    const skip = (Number(page) - 1) * Number(limit);
-    const [items, total] = await Promise.all([
-      Comment.find({ manga: mangaId })
-        .populate({ path: "user", select: "name username avatar" })
-        .sort({ createdAt: -1 })
-        .skip(skip)
-        .limit(Number(limit)),
-      Comment.countDocuments({ manga: mangaId }),
+    if (!mangaId) {
+      return res.status(400).json({ message: "mangaId is required" });
+    }
+    if (!mongoose.isValidObjectId(mangaId)) {
+      return res.status(400).json({ message: "Invalid mangaId" });
+    }
+
+    // clamp pagination
+    const page = Number.isFinite(rawPage) && rawPage > 0 ? rawPage : 1;
+    const limit =
+      Number.isFinite(rawLimit) && rawLimit > 0 ? Math.min(rawLimit, 100) : 20;
+    const skip = (page - 1) * limit;
+
+    // current user (optional)
+    const currentUserId = req.user?.id || req.query.userId || null;
+    const currentUserObjId =
+      currentUserId && mongoose.isValidObjectId(currentUserId)
+        ? new mongoose.Types.ObjectId(currentUserId)
+        : null;
+
+    const [result] = await Comment.aggregate([
+      { $match: { manga: new mongoose.Types.ObjectId(mangaId) } },
+      { $sort: { createdAt: -1 } },
+      {
+        $facet: {
+          items: [
+            { $skip: skip },
+            { $limit: limit },
+            // compute counts + userReaction
+            {
+              $addFields: {
+                likes: { $ifNull: ["$likes", []] },
+                dislikes: { $ifNull: ["$dislikes", []] },
+              },
+            },
+            {
+              $addFields: {
+                likesCount: { $size: "$likes" },
+                dislikesCount: { $size: "$dislikes" },
+                userReaction: currentUserObjId
+                  ? {
+                      $switch: {
+                        branches: [
+                          {
+                            case: { $in: [currentUserObjId, "$likes"] },
+                            then: "like",
+                          },
+                          {
+                            case: { $in: [currentUserObjId, "$dislikes"] },
+                            then: "dislike",
+                          },
+                        ],
+                        default: "none",
+                      },
+                    }
+                  : "none",
+              },
+            },
+            // populate user (name, username, avatar)
+            {
+              $lookup: {
+                from: "users",
+                localField: "user",
+                foreignField: "_id",
+                as: "user",
+                pipeline: [{ $project: { name: 1, username: 1, avatar: 1 } }],
+              },
+            },
+            { $set: { user: { $first: "$user" } } },
+            // trim payload
+            {
+              $project: {
+                comment: 1,
+                manga: 1,
+                user: 1,
+                createdAt: 1,
+                updatedAt: 1,
+                likesCount: 1,
+                dislikesCount: 1,
+                userReaction: 1,
+              },
+            },
+          ],
+          meta: [{ $count: "total" }],
+        },
+      },
+      {
+        $project: {
+          items: 1,
+          total: { $ifNull: [{ $first: "$meta.total" }, 0] },
+        },
+      },
     ]);
 
+    const total = result?.total ?? 0;
     res.json({
-      items,
+      items: result?.items ?? [],
       total,
-      page: Number(page),
-      pages: Math.ceil(total / limit),
+      page,
+      pages: Math.ceil(total / (limit || 1)),
     });
   } catch (err) {
     console.error("listComments error:", err);
@@ -93,15 +179,25 @@ exports.toggleReaction = async (req, res) => {
   try {
     const commentId = req.params.id;
     const userId = req.user?.id || req.body.userId; // prefer auth middleware
+    const { reaction } = req.body; // expected: "like" | "dislike" | "none"
 
     if (!userId) return res.status(401).json({ message: "Unauthorized" });
+    if (!["like", "dislike", "none"].includes(reaction)) {
+      return res.status(400).json({ message: "Invalid reaction type" });
+    }
 
     const comment = await Comment.findById(commentId);
     if (!comment) return res.status(404).json({ message: "Comment not found" });
 
-    const idx = comment.reactors.findIndex((u) => String(u) === String(userId));
-    if (idx === -1) comment.reactors.push(userId);
-    else comment.reactors.splice(idx, 1);
+    // remove user from both arrays first
+    comment.likes = comment.likes.filter((u) => String(u) !== String(userId));
+    comment.dislikes = comment.dislikes.filter(
+      (u) => String(u) !== String(userId)
+    );
+
+    // add them back based on reaction
+    if (reaction === "like") comment.likes.push(userId);
+    if (reaction === "dislike") comment.dislikes.push(userId);
 
     await comment.save();
 
@@ -110,7 +206,12 @@ exports.toggleReaction = async (req, res) => {
       select: "name username avatar",
     });
 
-    res.json({ message: "Updated", comment: populated });
+    res.json({
+      message: "Reaction updated",
+      likesCount: populated.likes.length,
+      dislikesCount: populated.dislikes.length,
+      comment: populated,
+    });
   } catch (err) {
     console.error("toggleReaction error:", err);
     res.status(500).json({ message: "Internal server error" });

@@ -41,11 +41,13 @@ export const getMyRating = (mangaId, userId) =>
 export const addCommentApi = (mangaId, comment, userId) =>
   API.post("/add-comment", { mangaId, comment, userId });
 
+// get comments with pagination
 export const getCommentsApi = (mangaId, page = 1, limit = 20) =>
   API.get(`/comments`, { params: { mangaId, page, limit } });
 
-export const reactCommentApi = (commentId, userId) =>
-  API.post(`/comments/${commentId}/react`, { userId }); // if no auth middleware yet
+// toggle like/dislike
+export const reactCommentApi = (commentId, userId, reaction) =>
+  API.post(`/comments/${commentId}/react`, { userId, reaction });
 
 // Create or update a user's status for a manga
 export const updatePersonalListStatus = (userId, mangaId, status) =>

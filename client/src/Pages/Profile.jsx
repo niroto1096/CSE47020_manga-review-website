@@ -13,7 +13,37 @@ const Profile = () => {
   const [personalList, setPersonalList] = useState([]);
   const [featured, setFeatured] = useState([]);
   const [recommended, setRecommended] = useState([]);
+  const [reviewed, setReviewed] = useState([]); // NEW
   const [loading, setLoading] = useState(true);
+
+  // helpers
+  const isReviewedByUser = (m) => {
+    if (!m) return false;
+    // support either an array of userId strings in m.raters
+    if (Array.isArray(m.raters) && userId) {
+      if (m.raters.includes(userId)) return true;
+      // sometimes ids are objects: { _id: "..." }
+      if (m.raters.some((r) => (r?._id || r?.id) === userId)) return true;
+    }
+    // or an array of rating docs: { user: <id>, value: <num> }
+    if (Array.isArray(m.ratings) && userId) {
+      if (
+        m.ratings.some(
+          (r) => (r?.user?._id || r?.user?.id || r?.user) === userId
+        )
+      ) {
+        return true;
+      }
+    }
+    return false;
+  };
+
+  const imgSrc = (m) =>
+    !m?.image
+      ? ""
+      : m.image.startsWith("http")
+      ? m.image
+      : `${IMAGE_BASE}/${m.image.replace(/^\/+/, "")}`;
 
   useEffect(() => {
     (async () => {
@@ -21,7 +51,12 @@ const Profile = () => {
         if (userId) {
           const res = await getMyPersonalList(userId, 1, 20);
           const list = res?.data?.data || res?.data?.items || res?.data || [];
-          setPersonalList(list);
+          // hide entries with status === 'unread' (case-insensitive)
+          const cleaned = list.filter((e) => {
+            const s = (e?.status || "").toString().trim().toLowerCase();
+            return s !== "unread";
+          });
+          setPersonalList(cleaned);
         }
 
         const resM = await getAllManga("");
@@ -33,6 +68,11 @@ const Profile = () => {
           .sort((a, b) => Number(b.rating || 0) - Number(a.rating || 0))
           .slice(0, 5);
         setRecommended(top5);
+
+        // NEW: reviewed by current user
+        if (userId) {
+          setReviewed(mangas.filter(isReviewedByUser));
+        }
       } catch (err) {
         console.error("Failed to load profile data:", err);
       } finally {
@@ -44,21 +84,22 @@ const Profile = () => {
   // Big vertical card (for all sections)
   const BigCard = ({ m, status }) => (
     <div
-      key={m._id || m.id}
+      key={m?._id || m?.id}
       className="bg-gray-800 rounded-lg shadow-lg overflow-hidden cursor-pointer hover:bg-gray-700 transition"
-      onClick={() => navigate(`/manga-detail/${m._id || m.id}`)}
+      onClick={() => m && navigate(`/manga-detail/${m._id || m.id}`)}
     >
       <img
-        src={`${IMAGE_BASE}/${m.image}`}
-        alt={m.title}
+        src={imgSrc(m)}
+        alt={m?.title || "Manga"}
         className="w-full h-60 object-cover"
+        onError={(e) => (e.currentTarget.style.display = "none")}
       />
       <div className="p-4">
         <h3 className="text-lg font-bold leading-tight line-clamp-2">
-          {m.title}
+          {m?.title || "Untitled"}
         </h3>
-        <p className="text-sm text-gray-300">{m.author || "Unknown"}</p>
-        <p className="text-sm text-gray-400 mt-1">⭐ {m.rating ?? 0}/10</p>
+        <p className="text-sm text-gray-300">{m?.author || "Unknown"}</p>
+        <p className="text-sm text-gray-400 mt-1">⭐ {m?.rating ?? 0}/10</p>
         {status && (
           <p className="mt-1 text-xs text-yellow-400">Status: {status}</p>
         )}
@@ -102,6 +143,26 @@ const Profile = () => {
                   />
                 ))}
               </div>
+            )}
+          </section>
+
+          {/* Reviewed (NEW) */}
+          <section>
+            <h2 className="text-2xl font-semibold mb-4">📝 Reviewed by You</h2>
+            {userId ? (
+              reviewed.length === 0 ? (
+                <p className="text-gray-400">
+                  You haven’t reviewed any manga yet.
+                </p>
+              ) : (
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+                  {reviewed.map((m) => (
+                    <BigCard key={`rev-${m._id || m.id}`} m={m} />
+                  ))}
+                </div>
+              )
+            ) : (
+              <p className="text-gray-400">Sign in to see your reviews.</p>
             )}
           </section>
 

@@ -15,6 +15,25 @@ import CommentsPanel from "@/components/CommentsPanel";
 const IMAGE_BASE =
   import.meta.env.VITE_API_URL?.replace(/\/+$/, "") || "http://localhost:8000";
 
+const buildImg = (img) => {
+  if (!img) return "";
+  if (img.startsWith("http")) return img;
+  return `${IMAGE_BASE}/${String(img).replace(/^\/+/, "")}`;
+};
+
+const normalizeTags = (v) => {
+  if (!v) return [];
+  if (Array.isArray(v)) return v.filter(Boolean);
+  if (typeof v === "string") {
+    // support "a,b,c" or "a | b | c"
+    return v
+      .split(/[,|]/)
+      .map((s) => s.trim())
+      .filter(Boolean);
+  }
+  return [];
+};
+
 const Details = () => {
   const { id } = useParams();
   const [manga, setManga] = useState(null);
@@ -26,12 +45,12 @@ const Details = () => {
   // rating (stars: 1..5)
   const [myRating, setMyRating] = useState(0);
 
-  // fetch manga helper
+  const currentUserId = localStorage.getItem("userId") || null;
+
   const fetchManga = async () => {
     const res = await getMangaById(id);
-    // Accept both shapes: { data: { ...doc } } or { data: { manga: doc } }
     const doc = res?.data?.manga || res?.data;
-    setManga(doc);
+    setManga(doc || null);
   };
 
   useEffect(() => {
@@ -41,28 +60,22 @@ const Details = () => {
         // 1) load manga
         await fetchManga();
 
-        // 2) user context
-        const userId = localStorage.getItem("userId");
-
-        // 3) load user's previous rating
-        if (userId) {
+        // 2) user context: rating + personal status
+        if (currentUserId) {
           try {
-            const { data } = await getMyRating(id, userId);
+            const { data } = await getMyRating(id, currentUserId);
             const stars = data?.score ? Math.round(Number(data.score) / 2) : 0; // 1..10 → 1..5
             setMyRating(stars);
-          } catch (e) {
-            console.warn("No prior rating or rating endpoint issue:", e);
+          } catch {
             setMyRating(0);
           }
 
-          // 4) load user's saved reading status (if GET endpoint available)
           try {
-            const res = await getPersonalListStatus(userId, id);
+            const res = await getPersonalListStatus(currentUserId, id);
             const saved = res?.data?.data?.status || res?.data?.status;
             if (saved) setStatus(saved);
-          } catch (e) {
-            // If not implemented yet, keep default
-            // console.warn("Status fetch failed:", e);
+          } catch {
+            /* ignore if not implemented */
           }
         } else {
           setMyRating(0);
@@ -79,16 +92,16 @@ const Details = () => {
   const handleStarClick = async (star) => {
     try {
       setMyRating(star); // optimistic UI
-      const userId = localStorage.getItem("userId");
-      if (!userId) {
+      if (!currentUserId) {
         console.error("No logged-in user ID found.");
         return;
       }
-
       const score = star * 2; // 1..5 → 2..10
-      const { data } = await addRating(id, { userId, rating: score });
+      const { data } = await addRating(id, {
+        userId: currentUserId,
+        rating: score,
+      });
 
-      // If server returns updated doc, trust it
       if (data?.manga) {
         setManga(data.manga);
       } else {
@@ -107,7 +120,7 @@ const Details = () => {
         });
       }
 
-      // refresh to get exact aggregates (handles re-rating)
+      // refresh from server (handles re-rating and aggregates)
       await fetchManga();
     } catch (err) {
       console.error("Failed to submit rating:", err);
@@ -118,19 +131,16 @@ const Details = () => {
   const handleStatusChange = async (e) => {
     const next = e.target.value;
     setStatus(next); // optimistic
-    const userId = localStorage.getItem("userId");
-    if (!userId) {
-      console.warn(
-        "No userId in localStorage; cannot save personal list status."
-      );
+    if (!currentUserId) {
+      console.warn("No userId; cannot save personal list status.");
       return;
     }
     try {
-      await updatePersonalListStatus(userId, id, next);
+      await updatePersonalListStatus(currentUserId, id, next);
     } catch (err) {
       console.error("Failed to update personal list status:", err);
-      // Optional rollback if you want:
-      // setStatus(prev => prev);
+      // optional rollback
+      // setStatus((prev) => prev);
     }
   };
 
@@ -147,6 +157,9 @@ const Details = () => {
     return <p className="text-center mt-10 text-gray-500">Manga not found.</p>;
   }
 
+  const genres = normalizeTags(manga.genre);
+  const themes = normalizeTags(manga.theme);
+
   return (
     <div className="min-h-screen bg-[#0f0f0f] text-white px-4 py-20">
       {/* Header */}
@@ -162,9 +175,10 @@ const Details = () => {
         {/* Left: Cover Image */}
         <div className="md:w-1/4 w-full">
           <img
-            src={`${IMAGE_BASE}/${manga.image}`}
+            src={buildImg(manga.image)}
             alt={manga.title}
             className="rounded-lg object-cover w-full"
+            onError={(e) => (e.currentTarget.style.display = "none")}
           />
         </div>
 
@@ -192,24 +206,24 @@ const Details = () => {
           </div>
 
           <p className="text-gray-300 text-sm leading-relaxed">
-            {manga.synopsis}
+            {manga.synopsis || manga.details || "No synopsis available."}
           </p>
 
           <div className="flex flex-wrap gap-2 mt-4">
-            {(manga.genre || []).map((tag, i) => (
+            {genres.map((tag, i) => (
               <span
                 key={`g-${i}`}
                 className="bg-gray-700 px-3 py-1 rounded-full text-xs"
               >
-                {`Genre ${tag}`}
+                {tag}
               </span>
             ))}
-            {(manga.theme || []).map((tag, i) => (
+            {themes.map((tag, i) => (
               <span
                 key={`t-${i}`}
                 className="bg-gray-700 px-3 py-1 rounded-full text-xs"
               >
-                {`Theme ${tag}`}
+                {tag}
               </span>
             ))}
           </div>
@@ -225,6 +239,7 @@ const Details = () => {
               onChange={handleStatusChange}
               className="bg-gray-800 text-white px-2 py-1 rounded border border-gray-600"
             >
+              {/* include common aliases used elsewhere to keep data consistent */}
               <option value="Reading">Reading</option>
               <option value="Completed">Completed</option>
               <option value="Planned">Planned</option>
@@ -247,12 +262,13 @@ const Details = () => {
 
           <TabsContent value="synopsis">
             <div className="bg-[#1e1e1e] p-6 rounded-lg text-gray-200 leading-relaxed">
-              {manga.details || "No synopsis available."}
+              {manga.details || manga.synopsis || "No synopsis available."}
             </div>
           </TabsContent>
 
           <TabsContent value="comments">
-            <CommentsPanel mangaId={id} />
+            {/* pass currentUserId so backend can return userReaction in listComments */}
+            <CommentsPanel mangaId={id} currentUserId={currentUserId} />
           </TabsContent>
         </Tabs>
       </div>
