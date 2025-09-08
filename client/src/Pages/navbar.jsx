@@ -3,13 +3,28 @@ import { Link, useNavigate } from "react-router-dom";
 import { UserContext } from "../Context/UserContext";
 import { logOut } from "@/Api/authApi";
 import { Button } from "@/components/ui/button";
+const IMAGE_BASE = import.meta.env.VITE_API_URL?.replace(/\/+$/, "") || "http://localhost:8000";
 
 const Navbar = () => {
   const { role, setRole } = useContext(UserContext);
 
-  if (!role) {
-    setRole(localStorage.getItem("role"));
-  }
+  useEffect(() => {
+    if (!role) setRole(localStorage.getItem("role"));
+  }, []);
+
+  const [avatar, setAvatar] = useState(null);
+  useEffect(() => {
+    // lazy load verify user to fetch avatar (non-blocking)
+    (async () => {
+      try {
+        const res = await (await import('@/Api/authApi')).verifyUser();
+        const u = res?.data?.user;
+        if (u?.avatar) setAvatar(u.avatar);
+      } catch (e) {
+        // ignore
+      }
+    })();
+  }, []);
 
   const navigate = useNavigate();
 
@@ -81,11 +96,11 @@ const Navbar = () => {
               >
                 Browse
               </Link>
-              <Link
-                to="/profile"
-                className="text-white hover:text-blue-600 font-medium dark:text-gray-200 dark:hover:text-blue-400"
-              >
-                Profile
+              <Link to="/profile" className="flex items-center gap-2">
+                {avatar && (
+                  <img src={`${IMAGE_BASE}/${avatar.startsWith('uploads/') ? avatar : `uploads/${avatar}`}`} alt="avatar" className="w-6 h-6 rounded-full object-cover" />
+                )}
+                <span className="text-white hover:text-blue-600 font-medium dark:text-gray-200 dark:hover:text-blue-400">Profile</span>
               </Link>
             </>
           )}

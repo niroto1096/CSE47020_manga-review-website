@@ -1,6 +1,7 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { getAllManga, getMyPersonalList, getUserReviewApi, getReviewSummaryApi } from "@/Api/mangaApi";
+import { uploadAvatar, verifyUser as verifyUserApi } from "@/Api/authApi";
 
 const IMAGE_BASE =
   import.meta.env.VITE_API_URL?.replace(/\/+$/, "") || "http://localhost:8000";
@@ -19,6 +20,9 @@ const Profile = () => {
   const [profileDebug, setProfileDebug] = useState({ reviewedCount: 0, ratingsCount: 0, error: null });
   const DEBUG = false; // hide debug UI in production
   const [avgRatings, setAvgRatings] = useState({}); // { [mangaId]: { average, count } }
+  const [avatar, setAvatar] = useState(null);
+  const [avatarPreview, setAvatarPreview] = useState(null);
+  const fileRef = useRef();
 
   // helpers
   const isReviewedByUser = (m) => {
@@ -49,6 +53,14 @@ const Profile = () => {
   useEffect(() => {
     (async () => {
       try {
+        // fetch verified user to get avatar if available
+        try {
+          const v = await verifyUserApi();
+          const u = v?.data?.user;
+          if (u?.avatar) setAvatar(u.avatar);
+        } catch (e) {
+          // ignore
+        }
         if (userId) {
           const res = await getMyPersonalList(userId, 1, 20);
           const list = res?.data?.data || res?.data?.items || res?.data || [];
@@ -148,6 +160,37 @@ const Profile = () => {
     })();
   }, [userId]);
 
+  const avatarUrl = (a) => {
+  if (!a) return "https://c8.alamy.com/comp/2PWERD5/student-avatar-illustration-simple-cartoon-user-portrait-user-profile-icon-youth-avatar-vector-illustration-2PWERD5.jpg";
+  if (a.startsWith('http')) return a;
+  // server stores filename only (e.g. "167...jpg"); uploads are served at /uploads/<filename>
+  const clean = a.replace(/^\/+/, '');
+  if (clean.startsWith('uploads/')) return `${IMAGE_BASE}/${clean}`;
+  return `${IMAGE_BASE}/uploads/${clean}`;
+  };
+
+  const onSelectFile = (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setAvatarPreview(URL.createObjectURL(file));
+  };
+
+  const onUploadAvatar = async () => {
+    const file = fileRef.current?.files?.[0];
+    if (!file) return;
+    const fd = new FormData();
+    fd.append('avatar', file);
+    try {
+      const res = await uploadAvatar(fd);
+      const u = res?.data?.user;
+      if (u?.avatar) setAvatar(u.avatar);
+      setAvatarPreview(null);
+      if (fileRef.current) fileRef.current.value = '';
+    } catch (err) {
+      console.error('Avatar upload failed', err);
+    }
+  };
+
   // Big vertical card (for all sections)
   const BigCard = ({ m, status, userRating }) => (
     <div
@@ -197,18 +240,33 @@ const Profile = () => {
     <div className="min-h-screen px-4 py-20 bg-white text-gray-900 dark:bg-gray-950 dark:text-gray-100">
       {/* Profile header */}
       <div className="max-w-6xl mx-auto flex flex-col md:flex-row items-center gap-6 mb-10">
-        <img
-          src="https://c8.alamy.com/comp/2PWERD5/student-avatar-illustration-simple-cartoon-user-portrait-user-profile-icon-youth-avatar-vector-illustration-2PWERD5.jpg"
-          alt="Profile Avatar"
-          className="w-28 h-28 rounded-full object-cover border-2 border-gray-300 dark:border-gray-700"
-          onError={(e) => (e.currentTarget.style.display = "none")}
-        />
+        <div className="relative">
+          <img
+            src={avatarPreview || avatarUrl(avatar)}
+            alt="Profile Avatar"
+            className="w-28 h-28 rounded-full object-cover border-2 border-gray-300 dark:border-gray-700"
+            onError={(e) => (e.currentTarget.style.display = "none")}
+          />
+          <div className="absolute bottom-0 right-0">
+            <label className="bg-blue-600 text-white px-2 py-1 rounded text-xs cursor-pointer">
+              Change
+              <input ref={fileRef} type="file" accept="image/*" onChange={onSelectFile} className="hidden" />
+            </label>
+          </div>
+        </div>
         <div>
           <h1 className="text-3xl font-bold">{username}</h1>
           <p className="text-gray-600 dark:text-gray-400 text-sm">
             Joined: Jan 2025
           </p>
+          {avatarPreview && (
+            <div className="mt-2 flex items-center gap-2">
+              <button onClick={onUploadAvatar} className="px-3 py-1 bg-green-600 text-white rounded text-sm">Upload</button>
+              <button onClick={() => { setAvatarPreview(null); if (fileRef.current) fileRef.current.value = ''; }} className="px-3 py-1 bg-gray-300 dark:bg-gray-700 text-sm rounded">Cancel</button>
+            </div>
+          )}
         </div>
+        
       </div>
 
       {loading ? (
