@@ -102,6 +102,19 @@ const Profile = () => {
           .slice(0, 5);
         setRecommended(top5);
 
+        // fetch favorites for profile
+        try {
+          const favRes = await (await import('@/Api/authApi')).getFavoritesApi();
+          const favs = favRes?.data?.favorites || favRes?.data || [];
+          // favs are full manga objects
+          setFeatured((prev)=>prev); // no-op to avoid lint
+          setReviewed((r)=>r);
+          // store favorites separately
+          setFavoriteList(favs || []);
+        } catch (e) {
+          // ignore
+        }
+
         // reviewed by current user
         if (userId) {
           // We'll check user reviews via the review API, since reviews/ratings are stored
@@ -236,6 +249,18 @@ const Profile = () => {
     </div>
   );
 
+  const [favoriteList, setFavoriteList] = React.useState([]);
+
+  const removeFavorite = async (mid) => {
+    try {
+      const { removeFavoriteApi } = await import('@/Api/authApi');
+      await removeFavoriteApi(mid);
+      setFavoriteList((prev)=>prev.filter((f)=>String(f._id||f.id)!==String(mid)));
+    } catch (e) {
+      console.error('remove favorite failed', e);
+    }
+  };
+
   return (
     <div className="min-h-screen px-4 py-20 bg-white text-gray-900 dark:bg-gray-950 dark:text-gray-100">
       {/* Profile header */}
@@ -357,6 +382,23 @@ const Profile = () => {
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
                 {featured.map((m) => (
                   <BigCard key={`feat-${m._id || m.id}`} m={m} />
+                ))}
+              </div>
+            )}
+          </section>
+
+          {/* Favorites */}
+          <section>
+            <h2 className="text-2xl font-semibold mb-4">💖 Favorites</h2>
+            {favoriteList.length === 0 ? (
+              <p className="text-gray-600 dark:text-gray-400">You don't have favorites yet.</p>
+            ) : (
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+                {favoriteList.map((m) => (
+                  <div key={`fav-${m._id||m.id}`} className="relative">
+                    <BigCard m={m} />
+                    <button onClick={()=>removeFavorite(m._id||m.id)} className="absolute top-2 right-2 bg-red-600 text-white px-2 py-1 rounded text-xs">Remove</button>
+                  </div>
                 ))}
               </div>
             )}

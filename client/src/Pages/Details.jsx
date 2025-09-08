@@ -13,6 +13,7 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import RatingStars from "@/components/RatingStars";
 import CommentsPanel from "@/components/CommentsPanel";
 import ReviewPanel from "@/components/ReviewPanel";
+import { addFavoriteApi, removeFavoriteApi, getFavoritesApi } from '@/Api/authApi';
 
 const IMAGE_BASE =
   import.meta.env.VITE_API_URL?.replace(/\/+$/, "") || "http://localhost:8000";
@@ -128,6 +129,7 @@ const Details = () => {
   // recently viewed
   const [recent, setRecent] = useState(loadRecent());
   const [recentSummaries, setRecentSummaries] = useState({});
+  const [isFavorite, setIsFavorite] = useState(false);
 
   const currentUserId = localStorage.getItem("userId") || null;
   const [userReviewStars, setUserReviewStars] = useState(0);
@@ -233,6 +235,16 @@ const Details = () => {
           } catch {
             setMyRating(0);
             setUserReviewStars(0);
+          }
+
+          // check favorites
+          try {
+            const favs = await getFavoritesApi();
+            const list = favs?.data?.favorites || favs?.data || [];
+            const found = list.some((m) => String(m?._id || m?.id) === String(id));
+            setIsFavorite(Boolean(found));
+          } catch (e) {
+            // ignore
           }
 
           try {
@@ -344,6 +356,26 @@ const Details = () => {
                 Copied!
               </span>
             )}
+            <button
+              onClick={async () => {
+                const uid = currentUserId;
+                if (!uid) return alert('Please log in to manage favorites');
+                try {
+                  if (isFavorite) {
+                    await removeFavoriteApi(id);
+                    setIsFavorite(false);
+                  } else {
+                    await addFavoriteApi(id);
+                    setIsFavorite(true);
+                  }
+                } catch (e) {
+                  console.error('favorite toggle failed', e);
+                }
+              }}
+              className={`px-3 py-2 text-sm rounded-lg border transition ${isFavorite ? 'bg-yellow-400 text-black' : 'bg-gray-200 dark:bg-gray-800'}`}
+            >
+              {isFavorite ? '★ Favorited' : '☆ Favorite'}
+            </button>
           </div>
         </div>
       </div>

@@ -6,6 +6,9 @@ const {
   verifyUser,
   logout,
   updateAvatar,
+  addFavorite,
+  removeFavorite,
+  getFavorites,
 } = require("../controllers/auth");
 const upload = require('../middlewares/multer');
 
@@ -18,5 +21,8 @@ router.get("/verify-user", verifyUser);
 router.get("/log-out", logout);
 // avatar upload
 router.post('/avatar', upload.single('avatar'), updateAvatar);
+router.post('/favorites/add', addFavorite);
+router.post('/favorites/remove', removeFavorite);
+router.get('/favorites', getFavorites);
 
 module.exports = router;
