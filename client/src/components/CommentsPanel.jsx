@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { getCommentsApi, addCommentApi, reactCommentApi, editCommentApi } from "@/Api/mangaApi";
+const IMAGE_BASE = import.meta.env.VITE_API_URL?.replace(/\/+$/, "") || "http://localhost:8000";
 
 const PAGE_SIZE = 20;
 
@@ -156,18 +157,28 @@ const CommentItem = ({ c, onReact, onEdit, currentUserId }) => {
     }
   };
 
+  const avatarUrl = () => {
+    const a = c?.user?.avatar;
+    if (!a) return "https://c8.alamy.com/comp/2PWERD5/student-avatar-illustration-simple-cartoon-user-portrait-user-profile-icon-youth-avatar-vector-illustration-2PWERD5.jpg";
+    if (a.startsWith('http')) return a;
+    const clean = String(a).replace(/^\/+/, '');
+    return clean.startsWith('uploads/') ? `${IMAGE_BASE}/${clean}` : `${IMAGE_BASE}/uploads/${clean}`;
+  };
+
   return (
     <div
       className="rounded-lg p-3 border
                     bg-gray-100 border-gray-200
                     dark:bg-[#171717] dark:border-gray-700"
     >
-      <div
-        className="flex items-center justify-between text-xs
-                      text-gray-500 dark:text-gray-400"
-      >
-        <span className="truncate max-w-[70%]">@{author}</span>
-        <span>{when}</span>
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          <img src={avatarUrl()} alt={author} className="w-8 h-8 rounded-full object-cover border" onError={(e)=>e.currentTarget.style.display='none'} />
+          <div className="text-xs text-gray-500 dark:text-gray-400">
+            <div className="truncate max-w-[70%]">@{author}</div>
+            <div className="text-[11px]">{when}</div>
+          </div>
+        </div>
       </div>
 
       {isEditing ? (
