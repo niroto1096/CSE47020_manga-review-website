@@ -363,22 +363,7 @@ const Profile = () => {
           </section>
 
           {/* Recommended Comics */}
-          <section>
-            <h2 className="text-2xl font-semibold mb-4">
-              🔥 Recommended • Top 5
-            </h2>
-            {recommended.length === 0 ? (
-              <p className="text-gray-600 dark:text-gray-400">
-                No recommendations available.
-              </p>
-            ) : (
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-                {recommended.map((m) => (
-                  <BigCard key={`rec-${m._id || m.id}`} m={m} />
-                ))}
-              </div>
-            )}
-          </section>
+          {/* Recommended section intentionally hidden on Profile page */}
         </div>
       )}
     </div>
