@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from "react";
-import { getCommentsApi, addCommentApi, reactCommentApi } from "@/Api/mangaApi";
+import { getCommentsApi, addCommentApi, reactCommentApi, editCommentApi } from "@/Api/mangaApi";
 
 const PAGE_SIZE = 20;
 
@@ -103,7 +103,11 @@ function optimisticToggle(c, userId, nextReaction) {
 
 /* ---------- UI ---------- */
 
-const CommentItem = ({ c, onReact, currentUserId }) => {
+const CommentItem = ({ c, onReact, onEdit, currentUserId }) => {
+  const [isEditing, setIsEditing] = useState(false);
+  const [editText, setEditText] = useState(c?.text || c?.comment || "");
+  const [isSaving, setIsSaving] = useState(false);
+
   const author =
     c?.user?.name ||
     c?.user?.username ||
@@ -122,43 +126,141 @@ const CommentItem = ({ c, onReact, currentUserId }) => {
   const handleLike = () => onReact(c, likeActive ? "none" : "like");
   const handleDislike = () => onReact(c, dislikeActive ? "none" : "dislike");
 
+  // Check if current user is the author of this comment
+  const isAuthor = currentUserId && (
+    String(c?.user?._id) === String(currentUserId) ||
+    String(c?.user) === String(currentUserId)
+  );
+
+  const handleEdit = () => {
+    setIsEditing(true);
+    setEditText(c?.text || c?.comment || "");
+  };
+
+  const handleCancel = () => {
+    setIsEditing(false);
+    setEditText(c?.text || c?.comment || "");
+  };
+
+  const handleSave = async () => {
+    if (!editText.trim() || isSaving) return;
+    
+    setIsSaving(true);
+    try {
+      await onEdit(c, editText.trim());
+      setIsEditing(false);
+    } catch (error) {
+      console.error("Failed to edit comment:", error);
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
   return (
-    <div className="border border-gray-700 rounded-lg p-3 bg-[#171717]">
-      <div className="flex items-center justify-between text-xs text-gray-400">
+    <div
+      className="rounded-lg p-3 border
+                    bg-gray-100 border-gray-200
+                    dark:bg-[#171717] dark:border-gray-700"
+    >
+      <div
+        className="flex items-center justify-between text-xs
+                      text-gray-500 dark:text-gray-400"
+      >
         <span className="truncate max-w-[70%]">@{author}</span>
         <span>{when}</span>
       </div>
 
-      <p className="mt-2 text-sm text-gray-200 whitespace-pre-wrap">
-        {c?.text || c?.comment}
-      </p>
-
-      <div className="mt-3 flex items-center gap-3 text-sm">
-        <button
-          type="button"
-          onClick={handleLike}
-          className={`px-3 py-1 rounded border ${
-            likeActive
-              ? "bg-green-700 border-green-600"
-              : "bg-gray-800 border-gray-700 hover:bg-gray-700"
-          }`}
-          title="Like"
+      {isEditing ? (
+        <div className="mt-2">
+          <textarea
+            value={editText}
+            onChange={(e) => setEditText(e.target.value)}
+            className="w-full p-2 rounded border text-sm
+                       bg-white text-gray-900 border-gray-300
+                       focus:outline-none focus:ring-1 focus:ring-gray-400
+                       dark:bg-[#121212] dark:text-gray-200 dark:border-gray-700 dark:focus:ring-gray-600"
+            rows={3}
+            disabled={isSaving}
+          />
+          <div className="flex gap-2 mt-2">
+            <button
+              onClick={handleSave}
+              disabled={!editText.trim() || isSaving}
+              className="px-3 py-1 text-xs rounded border transition
+                         bg-green-600 text-white border-green-600 hover:bg-green-700
+                         disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {isSaving ? "Saving..." : "Save"}
+            </button>
+            <button
+              onClick={handleCancel}
+              disabled={isSaving}
+              className="px-3 py-1 text-xs rounded border transition
+                         bg-gray-200 text-gray-900 border-gray-300 hover:bg-gray-300
+                         dark:bg-gray-800 dark:text-gray-200 dark:border-gray-700 dark:hover:bg-gray-700
+                         disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      ) : (
+        <p
+          className="mt-2 text-sm whitespace-pre-wrap
+                      text-gray-800 dark:text-gray-200"
         >
-          👍 {likesCount || 0}
-        </button>
+          {c?.text || c?.comment}
+        </p>
+      )}
 
-        <button
-          type="button"
-          onClick={handleDislike}
-          className={`px-3 py-1 rounded border ${
-            dislikeActive
-              ? "bg-red-700 border-red-600"
-              : "bg-gray-800 border-gray-700 hover:bg-gray-700"
-          }`}
-          title="Dislike"
-        >
-          👎 {dislikesCount || 0}
-        </button>
+      <div className="mt-3 flex items-center justify-between">
+        <div className="flex items-center gap-3 text-sm">
+          <button
+            type="button"
+            onClick={handleLike}
+            className={`px-3 py-1 rounded border transition
+              ${
+                likeActive
+                  ? "bg-green-600 text-white border-green-600 dark:bg-green-700 dark:border-green-600"
+                  : "bg-gray-200 text-gray-900 border-gray-300 hover:bg-gray-300 dark:bg-gray-800 dark:text-gray-200 dark:border-gray-700 dark:hover:bg-gray-700"
+              }`}
+            title="Like"
+            aria-pressed={likeActive}
+            aria-label="Like comment"
+          >
+            👍 {likesCount || 0}
+          </button>
+
+          <button
+            type="button"
+            onClick={handleDislike}
+            className={`px-3 py-1 rounded border transition
+              ${
+                dislikeActive
+                  ? "bg-red-600 text-white border-red-600 dark:bg-red-700 dark:border-red-600"
+                  : "bg-gray-200 text-gray-900 border-gray-300 hover:bg-gray-300 dark:bg-gray-800 dark:text-gray-200 dark:border-gray-700 dark:hover:bg-gray-700"
+              }`}
+            title="Dislike"
+            aria-pressed={dislikeActive}
+            aria-label="Dislike comment"
+          >
+            👎 {dislikesCount || 0}
+          </button>
+        </div>
+
+        {isAuthor && !isEditing && (
+          <button
+            type="button"
+            onClick={handleEdit}
+            className="px-3 py-1 text-xs rounded border transition
+                       bg-blue-600 text-white border-blue-600 hover:bg-blue-700
+                       dark:bg-blue-700 dark:border-blue-600 dark:hover:bg-blue-800"
+            title="Edit comment"
+            aria-label="Edit comment"
+          >
+            ✏️ Edit
+          </button>
+        )}
       </div>
     </div>
   );
@@ -171,17 +273,23 @@ const Pager = ({ page, total, limit, onPage }) => {
       <button
         onClick={() => onPage(Math.max(1, page - 1))}
         disabled={page <= 1}
-        className="px-3 py-1 rounded bg-gray-800 border border-gray-700 disabled:opacity-50"
+        className="px-3 py-1 rounded border transition
+                   bg-gray-200 text-gray-900 border-gray-300 hover:bg-gray-300
+                   disabled:opacity-50
+                   dark:bg-gray-800 dark:text-gray-100 dark:border-gray-700 dark:hover:bg-gray-700"
       >
         Prev
       </button>
-      <span className="text-sm text-gray-400">
+      <span className="text-sm text-gray-600 dark:text-gray-400">
         Page {page} / {totalPages}
       </span>
       <button
         onClick={() => onPage(Math.min(totalPages, page + 1))}
         disabled={page >= totalPages}
-        className="px-3 py-1 rounded bg-gray-800 border border-gray-700 disabled:opacity-50"
+        className="px-3 py-1 rounded border transition
+                   bg-gray-200 text-gray-900 border-gray-300 hover:bg-gray-300
+                   disabled:opacity-50
+                   dark:bg-gray-800 dark:text-gray-100 dark:border-gray-700 dark:hover:bg-gray-700"
       >
         Next
       </button>
@@ -316,8 +424,29 @@ const CommentsPanel = ({ mangaId, currentUserId: propUserId }) => {
     }
   };
 
+  const handleEdit = async (comment, newText) => {
+    if (!currentUserId) {
+      setErr("Please log in to edit comments.");
+      return;
+    }
+
+    try {
+      await editCommentApi(comment._id || comment.id, newText, currentUserId);
+      // Refresh comments to get the updated comment
+      await load(page);
+    } catch (e) {
+      console.error(e);
+      setErr("Failed to edit comment.");
+      throw e; // Re-throw so the CommentItem can handle the error
+    }
+  };
+
   return (
-    <div className="bg-[#1e1e1e] p-6 rounded-lg">
+    <div
+      className="p-6 rounded-lg border
+                    bg-gray-50 border-gray-200
+                    dark:bg-[#1e1e1e] dark:border-gray-800"
+    >
       {/* composer */}
       <div className="mb-6">
         <textarea
@@ -325,13 +454,18 @@ const CommentsPanel = ({ mangaId, currentUserId: propUserId }) => {
           onChange={(e) => setDraft(e.target.value)}
           placeholder="Write a comment…"
           rows={3}
-          className="w-full bg-[#121212] text-gray-200 p-3 rounded-lg border border-gray-700 focus:outline-none focus:ring-1 focus:ring-gray-500"
+          className="w-full p-3 rounded-lg border transition
+                     bg-white text-gray-900 border-gray-300
+                     focus:outline-none focus:ring-1 focus:ring-gray-400
+                     dark:bg-[#121212] dark:text-gray-200 dark:border-gray-700 dark:focus:ring-gray-600"
         />
         <div className="flex justify-end mt-3">
           <button
             onClick={handlePost}
             disabled={!canPost}
-            className="px-4 py-2 rounded-lg bg-gray-200 text-black font-medium disabled:opacity-50"
+            className="px-4 py-2 rounded-lg font-medium transition
+                       bg-gray-900 text-white hover:opacity-90 disabled:opacity-50
+                       dark:bg-gray-200 dark:text-black"
           >
             {posting ? "Posting…" : "Post Comment"}
           </button>
@@ -339,15 +473,19 @@ const CommentsPanel = ({ mangaId, currentUserId: propUserId }) => {
       </div>
 
       {/* list */}
-      {err && <p className="text-red-400 text-sm mb-3">{err}</p>}
+      {err && (
+        <p className="text-red-600 dark:text-red-400 text-sm mb-3">{err}</p>
+      )}
       {loading ? (
         <div className="space-y-3">
-          <div className="h-16 bg-[#151515] rounded-lg animate-pulse" />
-          <div className="h-16 bg-[#151515] rounded-lg animate-pulse" />
-          <div className="h-16 bg-[#151515] rounded-lg animate-pulse" />
+          <div className="h-16 rounded-lg animate-pulse bg-gray-200 dark:bg-[#151515]" />
+          <div className="h-16 rounded-lg animate-pulse bg-gray-200 dark:bg-[#151515]" />
+          <div className="h-16 rounded-lg animate-pulse bg-gray-200 dark:bg-[#151515]" />
         </div>
       ) : items.length === 0 ? (
-        <p className="text-gray-400">No comments yet. Be the first!</p>
+        <p className="text-gray-600 dark:text-gray-400">
+          No comments yet. Be the first!
+        </p>
       ) : (
         <>
           <div className="space-y-3">
@@ -356,6 +494,7 @@ const CommentsPanel = ({ mangaId, currentUserId: propUserId }) => {
                 key={c._id || c.id || `${c.user}-${c.createdAt}`}
                 c={c}
                 onReact={handleReact}
+                onEdit={handleEdit}
                 currentUserId={currentUserId}
               />
             ))}

@@ -1,5 +1,5 @@
 // App.jsx
-import React, { useContext } from "react";
+import React, { useContext, useEffect } from "react"; // ✅ import useEffect
 import { Route, Routes, Navigate } from "react-router-dom";
 
 import Registration from "./Pages/registration";
@@ -22,16 +22,31 @@ import "slick-carousel/slick/slick-theme.css";
 import UserProvider, { UserContext } from "./Context/UserContext";
 
 function App() {
+  useEffect(() => {
+    const stored = localStorage.getItem("theme");
+    const initial = stored || "dark"; // default = dark
+    if (initial === "dark") {
+      document.documentElement.classList.add("dark");
+      localStorage.setItem("theme", "dark");
+    } else {
+      document.documentElement.classList.remove("dark");
+      localStorage.setItem("theme", "light");
+    }
+  }, []);
+
   return (
     <UserProvider>
-      <Navbar />
-      <AppRoutes />
+      {/* optional: global bg/text so pages reflect theme */}
+      <div className="min-h-screen bg-white text-gray-900 dark:bg-gray-950 dark:text-gray-100">
+        <Navbar />
+        <AppRoutes />
+      </div>
     </UserProvider>
   );
 }
 
 function AppRoutes() {
-  const { role } = useContext(UserContext); // ✅ now inside the provider
+  const { role } = useContext(UserContext); // ✅ inside provider
 
   return (
     <Routes>
@@ -55,7 +70,7 @@ function AppRoutes() {
       />
       <Route path="/unauthorized" element={<Unauthorized />} />
 
-      {/* Root: Home if logged in, otherwise Login via PublicRoute */}
+      {/* Root: Home if logged in, otherwise Login */}
       <Route
         path="/"
         element={
@@ -104,12 +119,11 @@ function AppRoutes() {
           </ProtectedRoute>
         }
       />
-
       <Route
         path="/manga-detail/:id"
         element={
           <ProtectedRoute role={["user", "admin"]}>
-            <Details /> {/* or <Details /> if that’s your detail page */}
+            <Details />
           </ProtectedRoute>
         }
       />

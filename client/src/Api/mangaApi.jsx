@@ -42,12 +42,37 @@ export const addCommentApi = (mangaId, comment, userId) =>
   API.post("/add-comment", { mangaId, comment, userId });
 
 // get comments with pagination
-export const getCommentsApi = (mangaId, page = 1, limit = 20) =>
-  API.get(`/comments`, { params: { mangaId, page, limit } });
+export const getCommentsApi = (mangaId, page = 1, limit = 20, userId) =>
+  API.get(`/comments`, { params: { mangaId, page, limit, userId } });
 
 // toggle like/dislike
 export const reactCommentApi = (commentId, userId, reaction) =>
   API.post(`/comments/${commentId}/react`, { userId, reaction });
+
+// edit comment
+export const editCommentApi = (commentId, comment, userId) =>
+  API.put(`/comments/${commentId}`, { comment, userId });
+
+// Review API functions
+export const createOrUpdateReviewApi = (mangaId, review, rating, userId) =>
+  API.post("/reviews", { mangaId, review, rating, userId });
+
+export const getUserReviewApi = (mangaId, userId) =>
+  API.get("/reviews/user", { params: { mangaId, userId } });
+
+export const getMangaReviewsApi = (mangaId, page = 1, limit = 10) =>
+  API.get("/reviews", { params: { mangaId, page, limit } });
+
+export const deleteReviewApi = (reviewId, userId) =>
+  API.delete(`/reviews/${reviewId}`, { data: { userId } });
+
+// Review reactions
+export const reactReviewApi = (reviewId, userId, reaction) =>
+  API.post(`/reviews/${reviewId}/react`, { userId, reaction });
+
+// Review summary
+export const getReviewSummaryApi = (mangaId) =>
+  API.get("/reviews/summary", { params: { mangaId } });
 
 // Create or update a user's status for a manga
 export const updatePersonalListStatus = (userId, mangaId, status) =>

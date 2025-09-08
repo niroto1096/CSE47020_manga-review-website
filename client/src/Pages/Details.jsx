@@ -1,17 +1,18 @@
 import React, { useEffect, useState } from "react";
-import { useParams } from "react-router-dom";
+import { Link, useParams } from "react-router-dom";
 import {
   getMangaById,
-  addRating,
-  getMyRating,
   getPersonalListStatus,
   updatePersonalListStatus,
-  getAllManga, // ⬅️ NEW
+  getAllManga,
+  getUserReviewApi,
+  getReviewSummaryApi,
 } from "@/Api/mangaApi";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import RatingStars from "@/components/RatingStars";
 import CommentsPanel from "@/components/CommentsPanel";
+import ReviewPanel from "@/components/ReviewPanel";
 
 const IMAGE_BASE =
   import.meta.env.VITE_API_URL?.replace(/\/+$/, "") || "http://localhost:8000";
@@ -34,22 +35,102 @@ const normalizeTags = (v) => {
   return [];
 };
 
+/** ---------- Recently Viewed helpers ---------- */
+const RECENT_KEY = "recentManga";
+const MAX_RECENT = 5;
+
+function loadRecent() {
+  try {
+    const raw = localStorage.getItem(RECENT_KEY);
+    const arr = JSON.parse(raw || "[]");
+    if (!Array.isArray(arr)) return [];
+    return arr;
+  } catch {
+    return [];
+  }
+}
+
+function saveRecent(arr) {
+  try {
+    localStorage.setItem(RECENT_KEY, JSON.stringify(arr));
+  } catch {
+    // storage might be full/blocked; ignore
+  }
+}
+
+function pushRecent(manga) {
+  if (!manga?._id && !manga?.id) return;
+  const id = manga._id || manga.id;
+  const entry = {
+    id,
+    title: manga.title || "Untitled",
+    image: manga.image || "",
+    rating: Number(manga.rating ?? 0),
+    viewedAt: Date.now(),
+  };
+
+  const prev = loadRecent();
+  // remove any existing with same id
+  const filtered = prev.filter((x) => x.id !== id);
+  // add to front
+  const next = [entry, ...filtered].slice(0, MAX_RECENT);
+  saveRecent(next);
+  return next;
+}
+
 const Details = () => {
   const { id } = useParams();
+
+  // Share button UI
+  const [copied, setCopied] = useState(false);
+  const handleShare = async () => {
+    const url = window.location.href;
+    try {
+      if (navigator.share) {
+        await navigator.share({
+          title: manga?.title || "Check this out",
+          url,
+        });
+      } else if (navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(url);
+        setCopied(true);
+        setTimeout(() => setCopied(false), 1500);
+      } else {
+        const ta = document.createElement("textarea");
+        ta.value = url;
+        document.body.appendChild(ta);
+        ta.select();
+        document.execCommand("copy");
+        document.body.removeChild(ta);
+        setCopied(true);
+        setTimeout(() => setCopied(false), 1500);
+      }
+    } catch (e) {
+      console.error("Share/copy failed:", e);
+    }
+  };
+
   const [manga, setManga] = useState(null);
   const [loading, setLoading] = useState(true);
 
   // ranking state (computed)
-  const [rank, setRank] = useState(null); // e.g., 1,2,3...
-  const [totalCount, setTotalCount] = useState(0); // total mangas considered
+  const [rank, setRank] = useState(null);
+  const [totalCount, setTotalCount] = useState(0);
 
   // personal reading status
   const [status, setStatus] = useState("Unread");
 
   // rating (stars: 1..5)
   const [myRating, setMyRating] = useState(0);
+  const [avgRating5, setAvgRating5] = useState(0);
+  const [reviewCount, setReviewCount] = useState(0);
+
+  // recently viewed
+  const [recent, setRecent] = useState(loadRecent());
+  const [recentSummaries, setRecentSummaries] = useState({});
 
   const currentUserId = localStorage.getItem("userId") || null;
+  const [userReviewStars, setUserReviewStars] = useState(0);
 
   // fetch manga and return the doc
   const fetchManga = async () => {
@@ -82,30 +163,39 @@ const Details = () => {
 
     const r = uniqueHigher + 1;
     setRank(r);
-
-    // If you prefer competition ranking (1224), use:
-    // const higherCount = all.filter(m => Number(m?.rating ?? 0) > targetScore).length;
-    // setRank(higherCount + 1);
   };
 
   useEffect(() => {
     setLoading(true);
     (async () => {
       try {
-        // 1) load manga
         const doc = await fetchManga();
-
-        // 2) compute rank
         await computeRank(doc);
+        try {
+          const { data: summary } = await getReviewSummaryApi(id);
+          setAvgRating5(Number(summary?.average ?? 0));
+          setReviewCount(Number(summary?.count ?? 0));
+        } catch {
+          setAvgRating5(0);
+          setReviewCount(0);
+        }
 
-        // 3) user context: rating + personal status
+        // ----- Save to "recently viewed" as soon as the doc is ready -----
+        if (doc) {
+          const next = pushRecent(doc);
+          if (next) setRecent(next);
+        }
+        // ------------------------------------------------------------------
+
         if (currentUserId) {
           try {
-            const { data } = await getMyRating(id, currentUserId);
-            const stars = data?.score ? Math.round(Number(data.score) / 2) : 0; // 1..10 → 1..5
+            const { data } = await getUserReviewApi(id, currentUserId);
+            const stars = Number(data?.review?.rating ?? 0);
             setMyRating(stars);
+            setUserReviewStars(stars);
           } catch {
             setMyRating(0);
+            setUserReviewStars(0);
           }
 
           try {
@@ -126,54 +216,37 @@ const Details = () => {
     })();
   }, [id]);
 
-  // Star rating: save (1..5 stars -> 2..10 score)
-  const handleStarClick = async (star) => {
-    try {
-      setMyRating(star); // optimistic UI
-      if (!currentUserId) {
-        console.error("No logged-in user ID found.");
-        return;
+  // Load average review summaries for Recently Viewed items (out of 5)
+  useEffect(() => {
+    const ids = recent.map((i) => String(i.id));
+    if (ids.length === 0) return;
+    (async () => {
+      try {
+        const uniqueIds = Array.from(new Set(ids));
+        const entries = await Promise.all(
+          uniqueIds.map(async (mid) => {
+            if (recentSummaries[mid]) return [mid, recentSummaries[mid]];
+            try {
+              const { data } = await getReviewSummaryApi(mid);
+              return [mid, { average: Number(data?.average ?? 0), count: Number(data?.count ?? 0) }];
+            } catch {
+              return [mid, { average: 0, count: 0 }];
+            }
+          })
+        );
+        setRecentSummaries((prev) => ({ ...prev, ...Object.fromEntries(entries) }));
+      } catch {
+        /* ignore */
       }
-      const score = star * 2; // 1..5 → 2..10
-      const { data } = await addRating(id, {
-        userId: currentUserId,
-        rating: score,
-      });
+    })();
+  }, [recent]);
 
-      if (data?.manga) {
-        setManga(data.manga);
-        await computeRank(data.manga); // recompute rank with server-updated doc
-      } else {
-        // fallback optimistic recompute on client
-        setManga((prev) => {
-          if (!prev) return prev;
-          const prevAvg = Number(prev.rating ?? 0);
-          const prevCount = Number(prev.numRatings ?? 0);
-          const newCount = prevCount + 1;
-          const newAvg = (prevAvg * prevCount + score) / newCount;
-          const next = {
-            ...prev,
-            rating: Number(newAvg.toFixed(2)),
-            numRatings: newCount,
-          };
-          // compute rank based on optimistic value
-          computeRank(next).catch(() => {});
-          return next;
-        });
-      }
-
-      // refresh exact aggregates from server (handles re-rating)
-      const fresh = await fetchManga();
-      await computeRank(fresh);
-    } catch (err) {
-      console.error("Failed to submit rating:", err);
-    }
-  };
+  // No interactive star rating; show user's review rating if available
 
   // Personal list: change status (create or update)
   const handleStatusChange = async (e) => {
     const next = e.target.value;
-    setStatus(next); // optimistic
+    setStatus(next);
     if (!currentUserId) {
       console.warn("No userId; cannot save personal list status.");
       return;
@@ -195,20 +268,47 @@ const Details = () => {
   }
 
   if (!manga) {
-    return <p className="text-center mt-10 text-gray-500">Manga not found.</p>;
+    return (
+      <p className="text-center mt-10 text-gray-600 dark:text-gray-400">
+        Manga not found.
+      </p>
+    );
   }
 
   const genres = normalizeTags(manga.genre);
   const themes = normalizeTags(manga.theme);
 
   return (
-    <div className="min-h-screen bg-[#0f0f0f] text-white px-4 py-20">
+    <div className="min-h-screen px-4 py-20 bg-white text-gray-900 dark:bg-gray-950 dark:text-gray-100">
       {/* Header */}
       <div className="max-w-6xl mx-auto mb-6">
-        <h1 className="text-4xl font-bold">{manga.title}</h1>
-        <p className="text-gray-400 text-sm italic">
-          Author: {manga.author || "N/A"}
-        </p>
+        <div className="flex items-center justify-between gap-4">
+          {/* Left: title + author */}
+          <div>
+            <h1 className="text-4xl font-bold">{manga.title}</h1>
+            <p className="text-sm italic text-gray-600 dark:text-gray-400">
+              Author: {manga.author || "N/A"}
+            </p>
+          </div>
+
+          {/* Right: Share Button */}
+          <div className="flex items-center gap-2">
+            <button
+              onClick={handleShare}
+              aria-label="Share this page"
+              className="px-4 py-2 text-sm rounded-lg border transition
+                         bg-gray-200 hover:bg-gray-300 border-gray-300
+                         dark:bg-gray-800 dark:hover:bg-gray-700 dark:border-gray-700"
+            >
+              Share / Copy Link
+            </button>
+            {copied && (
+              <span className="text-xs text-green-600 dark:text-green-400">
+                Copied!
+              </span>
+            )}
+          </div>
+        </div>
       </div>
 
       {/* Main Section */}
@@ -218,14 +318,14 @@ const Details = () => {
           <img
             src={buildImg(manga.image)}
             alt={manga.title}
-            className="rounded-lg object-cover w-full"
+            className="rounded-lg object-cover w-full border border-gray-200 dark:border-gray-800"
             onError={(e) => (e.currentTarget.style.display = "none")}
           />
         </div>
 
         {/* Right: Info Section */}
         <div className="md:w-3/4 w-full space-y-4">
-          <div className="flex flex-wrap gap-4 text-sm text-gray-300">
+          <div className="flex flex-wrap gap-4 text-sm text-gray-700 dark:text-gray-300">
             <p>
               <strong>Ch:</strong> {manga.chapter || "N/A"}
             </p>
@@ -236,10 +336,8 @@ const Details = () => {
               <strong>Year:</strong> {manga.release_year || "N/A"}
             </p>
             <p>
-              <strong>⭐</strong> {manga.rating ?? 0}/10
-              {typeof manga.numRatings !== "undefined" && (
-                <span className="text-gray-500"> ({manga.numRatings})</span>
-              )}
+              <strong>⭐</strong> {avgRating5.toFixed(2)}/5
+              <span className="text-gray-500 dark:text-gray-400"> ({reviewCount})</span>
             </p>
             <p>
               <strong>Rank:</strong>{" "}
@@ -247,7 +345,7 @@ const Details = () => {
             </p>
           </div>
 
-          <p className="text-gray-300 text-sm leading-relaxed">
+          <p className="text-sm leading-relaxed text-gray-700 dark:text-gray-300">
             {manga.synopsis || manga.details || "No synopsis available."}
           </p>
 
@@ -255,7 +353,9 @@ const Details = () => {
             {genres.map((tag, i) => (
               <span
                 key={`g-${i}`}
-                className="bg-gray-700 px-3 py-1 rounded-full text-xs"
+                className="px-3 py-1 rounded-full text-xs
+                           bg-gray-200 text-gray-800
+                           dark:bg-gray-700 dark:text-gray-100"
               >
                 {tag}
               </span>
@@ -263,7 +363,9 @@ const Details = () => {
             {themes.map((tag, i) => (
               <span
                 key={`t-${i}`}
-                className="bg-gray-700 px-3 py-1 rounded-full text-xs"
+                className="px-3 py-1 rounded-full text-xs
+                           bg-gray-200 text-gray-800
+                           dark:bg-gray-700 dark:text-gray-100"
               >
                 {tag}
               </span>
@@ -279,7 +381,9 @@ const Details = () => {
               id="mangaStatus"
               value={status}
               onChange={handleStatusChange}
-              className="bg-gray-800 text-white px-2 py-1 rounded border border-gray-600"
+              className="px-2 py-1 rounded border
+                         bg-gray-100 text-gray-900 border-gray-300
+                         dark:bg-gray-800 dark:text-white dark:border-gray-600"
             >
               <option value="Reading">Reading</option>
               <option value="Completed">Completed</option>
@@ -288,21 +392,31 @@ const Details = () => {
             </select>
           </div>
 
-          {/* Star Rating */}
-          <RatingStars value={myRating} onSelect={handleStarClick} />
+          {/* Star Rating and Review Button */}
+          <div className="flex items-center gap-4">
+            <RatingStars value={userReviewStars || myRating} readOnly />
+          </div>
         </div>
       </div>
 
       {/* Tabs Below */}
       <div className="max-w-6xl mx-auto mt-10">
         <Tabs defaultValue="synopsis">
-          <TabsList className="bg-gray-800 rounded-lg w-full flex justify-start gap-6 px-4 py-2 mb-4">
+          <TabsList
+            className="w-full flex justify-start gap-6 px-4 py-2 mb-4 rounded-lg
+                               bg-gray-100 dark:bg-gray-800"
+          >
             <TabsTrigger value="synopsis">Synopsis</TabsTrigger>
             <TabsTrigger value="comments">Comments</TabsTrigger>
+            <TabsTrigger value="reviews">Reviews</TabsTrigger>
           </TabsList>
 
           <TabsContent value="synopsis">
-            <div className="bg-[#1e1e1e] p-6 rounded-lg text-gray-200 leading-relaxed">
+            <div
+              className="p-6 rounded-lg leading-relaxed border
+                            bg-gray-100 text-gray-800 border-gray-200
+                            dark:bg-gray-900 dark:text-gray-200 dark:border-gray-800"
+            >
               {manga.details || manga.synopsis || "No synopsis available."}
             </div>
           </TabsContent>
@@ -310,8 +424,53 @@ const Details = () => {
           <TabsContent value="comments">
             <CommentsPanel mangaId={id} currentUserId={currentUserId} />
           </TabsContent>
+
+          <TabsContent value="reviews">
+            <ReviewPanel mangaId={id} currentUserId={currentUserId} />
+          </TabsContent>
         </Tabs>
       </div>
+
+      {/* ---------- Recently Viewed (place this under your Recommended) ---------- */}
+      {recent.length > 0 && (
+        <div className="max-w-6xl mx-auto mt-12">
+          <h2 className="text-xl font-semibold mb-3">Recently Viewed</h2>
+          <div className="flex gap-4 overflow-x-auto pb-2">
+            {recent.map((item) => (
+              <Link
+                key={item.id}
+                to={`/details/${item.id}`}
+                className="min-w-[160px] max-w-[160px] shrink-0"
+                title={item.title}
+              >
+                <div
+                  className="rounded-lg border overflow-hidden hover:shadow transition
+                             border-gray-200 dark:border-gray-800"
+                >
+                  <img
+                    src={buildImg(item.image)}
+                    alt={item.title}
+                    className="w-full h-44 object-cover"
+                    onError={(e) => (e.currentTarget.style.display = "none")}
+                  />
+                  <div className="p-2">
+                    <div className="text-sm font-medium line-clamp-2">
+                      {item.title}
+                    </div>
+                    <div className="text-xs text-gray-600 dark:text-gray-400 mt-1">
+                      {(() => {
+                        const s = recentSummaries[String(item.id)] || { average: 0, count: 0 };
+                        return `⭐ ${Number(s.average || 0).toFixed(2)}/5 (${s.count})`;
+                      })()}
+                    </div>
+                  </div>
+                </div>
+              </Link>
+            ))}
+          </div>
+        </div>
+      )}
+      {/* ----------------------------------------------------------------------- */}
     </div>
   );
 };

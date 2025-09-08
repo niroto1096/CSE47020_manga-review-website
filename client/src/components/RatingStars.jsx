@@ -1,6 +1,6 @@
 import React from "react";
 
-const RatingStars = ({ value = 0, onSelect }) => {
+const RatingStars = ({ value = 0, onSelect, readOnly = false }) => {
   return (
     <div className="mt-6 text-sm">
       <label className="mr-2">My Rating:</label>
@@ -8,8 +8,10 @@ const RatingStars = ({ value = 0, onSelect }) => {
         {[1, 2, 3, 4, 5].map((star) => (
           <button
             key={star}
-            onClick={() => onSelect?.(star)}
-            className="text-2xl focus:outline-none"
+            onClick={() => (!readOnly ? onSelect?.(star) : undefined)}
+            disabled={readOnly}
+            aria-disabled={readOnly}
+            className={`text-2xl focus:outline-none ${readOnly ? "cursor-default opacity-90" : ""}`}
             title={`${star}/5 (= ${star * 2}/10)`}
           >
             {star <= value ? "⭐" : "☆"}

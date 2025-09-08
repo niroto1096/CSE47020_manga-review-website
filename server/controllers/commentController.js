@@ -217,3 +217,58 @@ exports.toggleReaction = async (req, res) => {
     res.status(500).json({ message: "Internal server error" });
   }
 };
+
+exports.editComment = async (req, res) => {
+  try {
+    const commentId = req.params.id;
+    const userId = req.user?.id || req.body.userId; // prefer auth middleware
+    const { comment: newComment } = req.body;
+
+    if (!userId) return res.status(401).json({ message: "Unauthorized" });
+
+    // Validate the new comment
+    const commentSchema = Joi.object({
+      comment: Joi.string().trim().min(1).max(5000).required(),
+    });
+
+    const { comment } = await commentSchema.validateAsync(
+      { comment: newComment },
+      { abortEarly: false }
+    );
+
+    // Find the comment and verify ownership
+    const existingComment = await Comment.findById(commentId);
+    if (!existingComment) {
+      return res.status(404).json({ message: "Comment not found" });
+    }
+
+    // Check if the user is the author of the comment
+    if (String(existingComment.user) !== String(userId)) {
+      return res.status(403).json({ message: "You can only edit your own comments" });
+    }
+
+    // Update the comment
+    existingComment.comment = comment;
+    await existingComment.save();
+
+    // Populate user fields for response
+    const populated = await Comment.findById(existingComment._id).populate({
+      path: "user",
+      select: "name username avatar",
+    });
+
+    res.json({
+      message: "Comment updated successfully",
+      comment: populated,
+    });
+  } catch (err) {
+    if (err.isJoi) {
+      return res.status(400).json({
+        message: "Validation error",
+        details: err.details.map((d) => d.message),
+      });
+    }
+    console.error("editComment error:", err);
+    res.status(500).json({ message: "Internal server error" });
+  }
+};

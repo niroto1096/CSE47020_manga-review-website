@@ -12,6 +12,7 @@ const {
   addComment,
   listComments,
   toggleReaction,
+  editComment,
 } = require("../controllers/commentController");
 const upload = require("../middlewares/multer");
 const {
@@ -19,6 +20,14 @@ const {
   getStatus,
   getList,
 } = require("../controllers/pListController");
+const {
+  createOrUpdateReview,
+  getUserReview,
+  getMangaReviews,
+  deleteReview,
+  toggleReviewReaction,
+  getReviewSummary,
+} = require("../controllers/reviewController");
 
 const router = express.Router();
 
@@ -38,4 +47,17 @@ router.get("/personal-list", getList);
 
 // toggle like: POST /comments/:id/react
 router.post("/comments/:id/react", toggleReaction);
+// edit comment: PUT /comments/:id
+router.put("/comments/:id", editComment);
+
+// Review routes
+router.post("/reviews", createOrUpdateReview);
+router.get("/reviews/user", getUserReview);
+router.get("/reviews", getMangaReviews);
+router.delete("/reviews/:id", deleteReview);
+// Review reactions
+router.post("/reviews/:id/react", toggleReviewReaction);
+// Review summary (avg and count)
+router.get("/reviews/summary", getReviewSummary);
+
 module.exports = router;
