@@ -2,6 +2,7 @@ import React, { useContext, useState, useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { UserContext } from "../Context/UserContext";
 import { logOut } from "@/Api/authApi";
+import { getAllManga } from "@/Api/mangaApi";
 import { Button } from "@/components/ui/button";
 const IMAGE_BASE = import.meta.env.VITE_API_URL?.replace(/\/+$/, "") || "http://localhost:8000";
 
@@ -53,6 +54,19 @@ const Navbar = () => {
     }
   };
 
+  const handleSurprise = async () => {
+    try {
+      const res = await getAllManga("");
+      const all = res?.data?.manga || res?.data || [];
+      if (!Array.isArray(all) || all.length === 0) return;
+      const pick = all[Math.floor(Math.random() * all.length)];
+      const id = String(pick?._id || pick?.id || "");
+      if (id) navigate(`/manga-detail/${id}`);
+    } catch (err) {
+      console.error('Surprise fetch failed', err);
+    }
+  };
+
   return (
     <header className="fixed top-0 left-0 right-0 z-50 w-full bg-[#203771] shadow-md dark:bg-gray-900">
       <nav className="w-full px-6 md:px-12 py-3 flex justify-between items-center">
@@ -96,6 +110,7 @@ const Navbar = () => {
               >
                 Browse
               </Link>
+              <button onClick={handleSurprise} className="text-white hover:text-blue-600 font-medium dark:text-gray-200 dark:hover:text-blue-400">🎲 Surprise Me!</button>
               <Link to="/profile" className="flex items-center gap-2">
                 {avatar && (
                   <img src={`${IMAGE_BASE}/${avatar.startsWith('uploads/') ? avatar : `uploads/${avatar}`}`} alt="avatar" className="w-6 h-6 rounded-full object-cover" />
