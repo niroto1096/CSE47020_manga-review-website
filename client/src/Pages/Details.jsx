@@ -143,26 +143,63 @@ const Details = () => {
   // compute dense rank based on rating across all mangas
   const computeRank = async (doc) => {
     if (!doc) return;
-    const targetScore = Number(doc.rating ?? 0);
-    if (!Number.isFinite(targetScore)) {
+    // Determine if doc has any ratings. Prefer denormalized numRatings if present,
+    // otherwise fall back to querying review summary.
+    let targetScore = Number(doc.rating ?? 0);
+    let targetCount = Number(doc?.numRatings ?? doc?.num_ratings ?? 0);
+
+    if (!Number.isFinite(targetCount) || targetCount === 0) {
+      // try to fetch summary to see if there are reviews
+      try {
+        const { data: summary } = await getReviewSummaryApi(String(doc._id || doc.id));
+        targetCount = Number(summary?.count ?? targetCount ?? 0);
+        // prefer any average reported by summary if doc.rating is missing
+        if (!Number.isFinite(targetScore) || targetScore === 0) {
+          targetScore = Number(summary?.average ?? targetScore ?? 0);
+        }
+      } catch (e) {
+        // ignore and proceed with available values
+      }
+    }
+
+    // If there are no reviews, show N/A for rank
+    if (!Number.isFinite(targetCount) || targetCount === 0) {
       setRank(null);
-      setTotalCount(0);
+      // still attempt to set total count from catalog
+      try {
+        const resAll = await getAllManga("");
+        const all = resAll?.data?.manga || resAll?.data || [];
+        setTotalCount(all.length);
+      } catch {
+        setTotalCount(0);
+      }
       return;
     }
 
-    const resAll = await getAllManga("");
-    const all = resAll?.data?.manga || resAll?.data || [];
-    setTotalCount(all.length);
+  const resAll = await getAllManga("");
+  const all = resAll?.data?.manga || resAll?.data || [];
+  setTotalCount(all.length);
 
-    // Dense rank: 1 + (number of unique rating values greater than target)
-    const uniqueHigher = new Set(
-      all
-        .map((m) => Number(m?.rating ?? 0))
-        .filter((s) => Number.isFinite(s) && s > targetScore)
-    ).size;
+    // Rank by: higher rating first, then higher numRatings as tiebreaker.
+    // Count how many mangas are strictly better than the target according to this ordering.
+    const targetId = String(doc._id || doc.id);
 
-    const r = uniqueHigher + 1;
-    setRank(r);
+    const tScore = Number(targetScore ?? 0);
+    const tCount = Number(targetCount ?? 0);
+
+    const countBetter = all.reduce((acc, m) => {
+      const mid = String(m?._id || m?.id || "");
+      if (mid === targetId) return acc; // skip target itself
+      const rScore = Number(m?.rating ?? 0);
+      const rCount = Number(m?.numRatings ?? m?.num_ratings ?? 0);
+
+      // m is better than target if rating higher, or same rating but more raters
+      if (Number.isFinite(rScore) && rScore > tScore) return acc + 1;
+      if (Number.isFinite(rScore) && rScore === tScore && Number.isFinite(rCount) && rCount > tCount) return acc + 1;
+      return acc;
+    }, 0);
+
+    setRank(countBetter + 1);
   };
 
   useEffect(() => {
