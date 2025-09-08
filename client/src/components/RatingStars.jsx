@@ -11,8 +11,8 @@ const RatingStars = ({ value = 0, onSelect, readOnly = false }) => {
             onClick={() => (!readOnly ? onSelect?.(star) : undefined)}
             disabled={readOnly}
             aria-disabled={readOnly}
-            className={`text-2xl focus:outline-none ${readOnly ? "cursor-default opacity-90" : ""}`}
-            title={`${star}/5 (= ${star * 2}/10)`}
+              className={`text-2xl focus:outline-none ${readOnly ? "cursor-default opacity-90" : ""}`}
+              title={`${star}/5`}
           >
             {star <= value ? "⭐" : "☆"}
           </button>
@@ -20,7 +20,7 @@ const RatingStars = ({ value = 0, onSelect, readOnly = false }) => {
       </div>
       {value > 0 && (
         <p className="text-gray-400 mt-1">
-          You rated this {value}/5 ({value * 2}/10)
+          You rated this {value}/5
         </p>
       )}
     </div>
