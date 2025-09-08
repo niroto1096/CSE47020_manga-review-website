@@ -132,12 +132,12 @@ const Navbar = () => {
           </Button>
 
           {role ? (
-            <Button onClick={handleLogout} className="text-white">
+            <Button onClick={handleLogout} className="bg-white text-black dark:bg-black dark:text-white">
               Logout
             </Button>
           ) : (
             <Link to="/login">
-              <Button className="text-white">Login</Button>
+              <Button className="bg-white text-black dark:bg-black dark:text-white">Login</Button>
             </Link>
           )}
         </div>
