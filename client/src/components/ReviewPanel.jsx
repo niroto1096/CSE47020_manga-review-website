@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from "react";
+const IMAGE_BASE = import.meta.env.VITE_API_URL?.replace(/\/+$/, "") || "http://localhost:8000";
 import { 
   createOrUpdateReviewApi, 
   getUserReviewApi, 
@@ -353,9 +354,22 @@ const ReviewPanel = ({ mangaId, currentUserId }) => {
               >
                 <div className="flex items-center justify-between mb-2">
                   <div className="flex items-center gap-2">
-                    <span className="font-medium text-gray-900 dark:text-gray-100">
-                      {review.user?.name || review.user?.username || "Anonymous"}
-                    </span>
+                      {/** avatar */}
+                      <img
+                        src={(() => {
+                          const a = review.user?.avatar;
+                          if (!a) return "https://c8.alamy.com/comp/2PWERD5/student-avatar-illustration-simple-cartoon-user-portrait-user-profile-icon-youth-avatar-vector-illustration-2PWERD5.jpg";
+                          if (a.startsWith('http')) return a;
+                          const clean = String(a).replace(/^\/+/, '');
+                          return clean.startsWith('uploads/') ? `${IMAGE_BASE}/${clean}` : `${IMAGE_BASE}/uploads/${clean}`;
+                        })()}
+                        alt={review.user?.name || review.user?.username || 'Avatar'}
+                        className="w-8 h-8 rounded-full object-cover border"
+                        onError={(e) => (e.currentTarget.style.display = 'none')}
+                      />
+                      <span className="font-medium text-gray-900 dark:text-gray-100">
+                        {review.user?.name || review.user?.username || "Anonymous"}
+                      </span>
                     {renderStars(review.rating)}
                   </div>
                   <span className="text-xs text-gray-500 dark:text-gray-400">
