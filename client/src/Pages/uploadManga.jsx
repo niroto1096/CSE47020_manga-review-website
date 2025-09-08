@@ -1,20 +1,7 @@
 import React, { useState } from "react";
 import { Input } from "../components/ui/input";
 import { Button } from "../components/ui/button";
-import {
-  Select,
-  SelectTrigger,
-  SelectValue,
-  SelectContent,
-  SelectItem,
-} from "../components/ui/select";
-import { Calendar } from "../components/ui/calendar";
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "../components/ui/popover";
-import { format } from "date-fns";
+import { Select } from "../components/ui/select";
 import { uploadManga } from "../Api/mangaApi";
 
 const UploadManga = () => {
@@ -23,10 +10,9 @@ const UploadManga = () => {
     image: null,
     featured: false,
     details: "",
-    release_date: null, // Date object
     genre: [""],
     theme: [""],
-    rating: 0,
+  rating: 0,
     author: "",
     synopsis: "",
     release_year: "",
@@ -85,11 +71,7 @@ const UploadManga = () => {
       formData.append("title", data.title);
       formData.append("featured", String(data.featured));
       formData.append("details", data.details);
-      formData.append(
-        "release_date",
-        data.release_date ? data.release_date.toISOString() : ""
-      );
-      formData.append("rating", String(data.rating || 0));
+  formData.append("rating", String(data.rating || 0));
       formData.append("author", data.author);
       formData.append("synopsis", data.synopsis);
       formData.append("release_year", data.release_year);
@@ -200,72 +182,19 @@ const UploadManga = () => {
           </div>
         </div>
 
-        {/* Release Date picker */}
-        <div className="space-y-2">
-          <label className="text-sm font-medium">Release Date (optional)</label>
-          <Popover>
-            <PopoverTrigger asChild>
-              <Button
-                variant="outline"
-                type="button"
-                className="w-full justify-start"
-              >
-                {data.release_date
-                  ? format(data.release_date, "PPP")
-                  : "Pick a date"}
-              </Button>
-            </PopoverTrigger>
-            <PopoverContent align="start" className="p-0">
-              <Calendar
-                mode="single"
-                selected={data.release_date || undefined}
-                onSelect={(d) =>
-                  setData((p) => ({ ...p, release_date: d ?? null }))
-                }
-                initialFocus
-              />
-            </PopoverContent>
-          </Popover>
-        </div>
-
-        {/* Featured + Rating */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          {/* Featured */}
-          <div className="flex items-center gap-3">
-            <input
-              id="featured"
-              type="checkbox"
-              name="featured"
-              checked={data.featured}
-              onChange={handleChange}
-              className="h-4 w-4"
-            />
-            <label htmlFor="featured" className="text-sm">
-              Mark as Featured
-            </label>
-          </div>
-
-          {/* Rating (0..10) */}
-          <div className="space-y-2">
-            <label className="text-sm font-medium">Initial Rating</label>
-            <Select
-              value={String(data.rating)}
-              onValueChange={(v) =>
-                setData((p) => ({ ...p, rating: Number(v) }))
-              }
-            >
-              <SelectTrigger>
-                <SelectValue placeholder="Select rating" />
-              </SelectTrigger>
-              <SelectContent>
-                {Array.from({ length: 11 }).map((_, i) => (
-                  <SelectItem key={i} value={String(i)}>
-                    {i}/10
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
+        {/* Featured */}
+        <div className="flex items-center gap-3">
+          <input
+            id="featured"
+            type="checkbox"
+            name="featured"
+            checked={data.featured}
+            onChange={handleChange}
+            className="h-4 w-4"
+          />
+          <label htmlFor="featured" className="text-sm">
+            Mark as Featured
+          </label>
         </div>
 
         {/* Genres */}
