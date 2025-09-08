@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { getAllManga, getMyPersonalList, getUserReviewApi } from "@/Api/mangaApi";
+import { getAllManga, getMyPersonalList, getUserReviewApi, getReviewSummaryApi } from "@/Api/mangaApi";
 
 const IMAGE_BASE =
   import.meta.env.VITE_API_URL?.replace(/\/+$/, "") || "http://localhost:8000";
@@ -18,6 +18,7 @@ const Profile = () => {
   const [userRatings, setUserRatings] = useState({}); // { [mangaId]: 1..5 }
   const [profileDebug, setProfileDebug] = useState({ reviewedCount: 0, ratingsCount: 0, error: null });
   const DEBUG = false; // hide debug UI in production
+  const [avgRatings, setAvgRatings] = useState({}); // { [mangaId]: { average, count } }
 
   // helpers
   const isReviewedByUser = (m) => {
@@ -57,6 +58,26 @@ const Profile = () => {
             return s !== "unread";
           });
           setPersonalList(cleaned);
+          // fetch live averages for personal list items
+          try {
+            const sums = await Promise.allSettled(
+              cleaned.map(async (entry) => {
+                const mid = String(entry?.manga?._id || entry?.manga?.id || entry?.manga);
+                const resS = await getReviewSummaryApi(mid);
+                const body = resS?.data || {};
+                return [mid, { average: body?.average ?? 0, count: body?.count ?? 0 }];
+              })
+            );
+            const map = {};
+            sums.forEach((r) => {
+              if (r.status === "fulfilled" && Array.isArray(r.value)) {
+                map[r.value[0]] = r.value[1];
+              }
+            });
+            setAvgRatings(map);
+          } catch (err) {
+            console.debug("Profile: failed to fetch avgRatings", err);
+          }
         }
 
         const resM = await getAllManga("");
@@ -150,7 +171,18 @@ const Profile = () => {
           {m?.author || "Unknown"}
         </p>
         <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
-          ⭐ {(userRating !== undefined ? userRating : userRatings[String(m?._id || m?.id)] ?? 0)}/5
+          {userRating !== undefined ? (
+            <>⭐ {userRating}/5</>
+          ) : (
+            // If this card is part of Personal List (status provided), show live average with 2 decimals and count
+            status && (() => {
+              const id = String(m?._id || m?.id || "");
+              const s = avgRatings[id];
+              if (s) return <>{`⭐ ${Number(s.average ?? 0).toFixed(2)}/5 (${s.count ?? 0})`}</>;
+              if (Number.isFinite(Number(m?.rating))) return <>{`⭐ ${Number(m.rating).toFixed(2)}/5 (${m?.numRatings ?? 0})`}</>;
+              return <>{`⭐ ${(m?.rating ?? userRatings[id] ?? 0)}/5`}</>;
+            })()
+          )}
         </p>
         {status && (
           <p className="mt-1 text-xs text-yellow-700 dark:text-yellow-400">
