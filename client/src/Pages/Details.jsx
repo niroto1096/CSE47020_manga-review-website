@@ -508,7 +508,7 @@ const Details = () => {
             {recent.map((item) => (
               <Link
                 key={item.id}
-                to={`/details/${item.id}`}
+                to={`/manga-detail/${item.id}`}
                 className="min-w-[160px] max-w-[160px] shrink-0"
                 title={item.title}
               >
