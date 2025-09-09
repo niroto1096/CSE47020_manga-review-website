@@ -5,7 +5,6 @@ const cookieParser = require("cookie-parser");
 const path = require('path')
 const authRoute = require('./routes/userRoute')
 const mangaRoute = require('./routes/mangaRoute')
-const reviewRoute = require('./routes/reviewRoute');
 
 
 require("dotenv").config();
@@ -27,6 +26,6 @@ app.use(
 app.use('/api/auth',authRoute)
 app.use("/uploads", express.static(path.join(__dirname, "uploads")));
 app.use('/api/manga',mangaRoute)
-app.use('/api/reviews', reviewRoute)
+
 const PORT = process.env.PORT || 8080;
 app.listen(PORT, () => console.log(`Server running on port ${PORT}`));

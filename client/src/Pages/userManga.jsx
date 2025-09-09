@@ -1,74 +1,108 @@
-import React, { useEffect, useState } from 'react';
-import { getAllManga } from '@/Api/mangaApi';
-import { useNavigate } from 'react-router-dom';
+import React, { useEffect, useState } from "react";
+import { getAllManga } from "@/Api/mangaApi";
+import { useNavigate } from "react-router-dom";
+
+const IMAGE_BASE =
+  import.meta.env.VITE_API_URL?.replace(/\/+$/, "") || "http://localhost:8000";
 
 const UserManga = () => {
-  const [search, setSearch] = useState('');
+  const [search, setSearch] = useState("");
   const [manga, setManga] = useState([]);
+  const [loading, setLoading] = useState(true);
   const navigate = useNavigate();
 
   const fetchManga = async () => {
     try {
+      setLoading(true);
       const res = await getAllManga(search);
-      setManga(res.data || []);
+      const list = res?.data?.manga || res?.data || [];
+      setManga(list);
     } catch (error) {
-      console.error('Failed to fetch manga:', error);
+      console.error("Failed to fetch manga:", error);
+      setManga([]);
+    } finally {
+      setLoading(false);
     }
   };
 
   useEffect(() => {
     fetchManga();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [search]);
 
-  const handleNavigate = (id) => {
-    navigate(`/manga-detail/${id}`);
-  };
+  const handleNavigate = (id) => navigate(`/manga-detail/${id}`);
+
+  const imgSrc = (m) =>
+    !m?.image
+      ? ""
+      : String(m.image).startsWith("http")
+      ? m.image
+      : `${IMAGE_BASE}/${String(m.image).replace(/^\/+/, "")}`;
 
   return (
-    <div className="min-h-screen bg-[#111827] text-white mt-10">
+    <div className="min-h-screen mt-10 bg-white text-gray-900 dark:bg-gray-950 dark:text-gray-100">
       {/* Full-Width Banner Image */}
-      <img
-        src="https://images-wixmp-ed30a86b8c4ca887773594c2.wixmp.com/f/265a5953-9b87-4cc1-b805-038b047df1ba/ddpxuvr-f17df44d-3190-4327-a1c5-c6729e29eb53.png/v1/fill/w_1024,h_265/header___kaguya_sama__love_is_war_by_luluchan696_ddpxuvr-fullview.png?token=eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJ1cm46YXBwOjdlMGQxODg5ODIyNjQzNzNhNWYwZDQxNWVhMGQyNmUwIiwiaXNzIjoidXJuOmFwcDo3ZTBkMTg4OTgyMjY0MzczYTVmMGQ0MTVlYTBkMjZlMCIsIm9iaiI6W1t7InBhdGgiOiJcL2ZcLzI2NWE1OTUzLTliODctNGNjMS1iODA1LTAzOGIwNDdkZjFiYVwvZGRweHV2ci1mMTdkZjQ0ZC0zMTkwLTQzMjctYTFjNS1jNjcyOWUyOWViNTMucG5nIiwiaGVpZ2h0IjoiPD0yNjUiLCJ3aWR0aCI6Ijw9MTAyNCJ9XV0sImF1ZCI6WyJ1cm46c2VydmljZTppbWFnZS53YXRlcm1hcmsiXSwid21rIjp7InBhdGgiOiJcL3dtXC8yNjVhNTk1My05Yjg3LTRjYzEtYjgwNS0wMzhiMDQ3ZGYxYmFcL2x1bHVjaGFuNjk2LTQucG5nIiwib3BhY2l0eSI6OTUsInByb3BvcnRpb25zIjowLjQ1LCJncmF2aXR5IjoiY2VudGVyIn19.DZgjx_DfprxdSkRdHQi5sw-s6W1FCWb2aYX9DtfbZLI"
-        alt="banner"
-        className="w-full h-64 object-cover"
-      />
+      <div className="relative w-full h-64">
+        <img
+          src="https://images-wixmp-ed30a86b8c4ca887773594c2.wixmp.com/f/265a5953-9b87-4cc1-b805-038b047df1ba/ddpxuvr-f17df44d-3190-4327-a1c5-c6729e29eb53.png/v1/fill/w_1024,h_265/header___kaguya_sama__love_is_war_by_luluchan696_ddpxuvr-fullview.png"
+          alt="banner"
+          className="w-full h-64 object-cover"
+        />
+        <div className="absolute inset-0 bg-gradient-to-b from-black/20 to-black/50 pointer-events-none" />
+      </div>
 
-    
       {/* Search Section */}
-<div className="max-w-4xl mx-32 py-12  sm:px-6 lg:px-8">
-  <div className="max-w-md">
-    <input
-      type="text"
-      placeholder="Search by title, genre or author..."
-      value={search}
-      onChange={(e) => setSearch(e.target.value)}
-      className="w-full py-2 px-4 border border-gray-600 bg-gray-800 text-white rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-    />
-  </div>
-</div>
-
+      <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        <div className="max-w-xl">
+          <input
+            type="text"
+            placeholder="Search by title, genre or author..."
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            className="w-full py-2.5 px-4 rounded-lg border transition
+                       bg-white text-gray-900 border-gray-300 shadow-sm
+                       focus:outline-none focus:ring-2 focus:ring-blue-500
+                       dark:bg-gray-900 dark:text-gray-100 dark:border-gray-700"
+          />
+        </div>
+      </div>
 
       {/* Manga Grid */}
       <div className="max-w-7xl mx-auto grid grid-cols-2 sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-6 gap-4 px-4 pb-16">
-
-        {manga.length === 0 ? (
-          <div className="col-span-full text-center text-gray-400 text-lg">
+        {loading ? (
+          <>
+            {Array.from({ length: 12 }).map((_, i) => (
+              <div
+                key={`sk-${i}`}
+                className="rounded-md h-[260px] animate-pulse bg-gray-200 dark:bg-gray-800"
+              />
+            ))}
+          </>
+        ) : manga.length === 0 ? (
+          <div className="col-span-full text-center text-gray-600 dark:text-gray-400 text-lg">
             No manga found.
           </div>
         ) : (
-          manga.map((manga) => (
+          manga.map((m) => (
             <div
-              key={manga._id}
-              className="text-white flex flex-col items-center p-4 hover:scale-105 transition-transform cursor-pointer"
-              onClick={() => handleNavigate(manga._id)}
+              key={m._id || m.id}
+              className="flex flex-col items-center p-3 rounded-md transition cursor-pointer
+                         bg-gray-200 hover:bg-gray-300
+                         dark:bg-gray-800 dark:hover:bg-gray-700"
+              onClick={() => handleNavigate(m._id || m.id)}
             >
               <img
-                src={`http://localhost:8000/${manga.image}`}
-                alt={manga.title}
-                className="rounded-md w-full h-[220px] object-cover mb-2"
+                src={imgSrc(m)}
+                alt={m.title || "Manga"}
+                className="rounded-md w-full h-[220px] object-cover mb-2 border border-gray-300 dark:border-gray-700"
+                onError={(e) => (e.currentTarget.style.display = "none")}
               />
-              <p className="text-xs text-blue-400 mb-1 hover:underline">+ Add to list</p>
-              <h3 className="text-center font-semibold text-sm">{manga.title}</h3>
+              <p className="text-xs text-blue-700 dark:text-blue-400 mb-1 hover:underline">
+                + Add to list
+              </p>
+              <h3 className="text-center font-semibold text-sm line-clamp-2">
+                {m.title}
+              </h3>
             </div>
           ))
         )}

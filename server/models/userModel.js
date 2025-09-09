@@ -5,6 +5,13 @@ const userSchema = new mongoose.Schema({
   name: String,
   email: String,
   password: String,
+  avatar: String,
+  favorites: [
+    {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'mangas'
+    }
+  ],
   address: String,
   phone: String,
   company: String,       

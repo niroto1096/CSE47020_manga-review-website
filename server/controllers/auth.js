@@ -136,7 +136,13 @@ exports.verifyUser = async (req, res) => {
     
     req.user = decoded; 
 
-    return res.status(200).json({ message: "User verified", user: decoded });
+    // Return the latest user record from DB to include fields like avatar
+    try {
+      const fullUser = await userModel.findById(decoded.id).select('-password');
+      return res.status(200).json({ message: "User verified", user: fullUser || decoded });
+    } catch (e) {
+      return res.status(200).json({ message: "User verified", user: decoded });
+    }
   } catch (error) {
     return res.status(402).json({ message: "Invalid or expired token", error: error.message });
   }
@@ -154,6 +160,85 @@ exports.logout = async (req, res) => {
     return res.status(200).json({ message: 'Logged out successfully' });
   } catch (error) {
     console.error('Logout Error:', error);
+    return res.status(500).json({ message: 'Internal Server Error' });
+  }
+};
+
+// Update avatar: expects multipart/form-data with file field "avatar"
+exports.updateAvatar = async (req, res) => {
+  try {
+    const token = req.cookies.token;
+    if (!token) return res.status(401).json({ message: 'Unauthorized' });
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    const userId = decoded.id;
+    if (!req.file) return res.status(400).json({ message: 'No file uploaded' });
+
+    const avatarPath = req.file.filename; // stored in /uploads
+    const user = await userModel.findByIdAndUpdate(userId, { avatar: avatarPath }, { new: true }).select('-password');
+    return res.status(200).json({ message: 'Avatar updated', user });
+  } catch (err) {
+    console.error('updateAvatar error', err.message);
+    return res.status(500).json({ message: 'Internal Server Error' });
+  }
+};
+
+// Add manga to user's favorites
+exports.addFavorite = async (req, res) => {
+  try {
+    const token = req.cookies.token;
+    if (!token) return res.status(401).json({ message: 'Unauthorized' });
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    const userId = decoded.id;
+    const { mangaId } = req.body;
+    if (!mangaId) return res.status(400).json({ message: 'mangaId required' });
+
+    const user = await userModel.findById(userId);
+    if (!user) return res.status(404).json({ message: 'User not found' });
+    if (!user.favorites) user.favorites = [];
+    if (!user.favorites.map(String).includes(String(mangaId))) {
+      user.favorites.push(mangaId);
+      await user.save();
+    }
+    return res.status(200).json({ message: 'Added to favorites', favorites: user.favorites });
+  } catch (err) {
+    console.error('addFavorite error', err.message);
+    return res.status(500).json({ message: 'Internal Server Error' });
+  }
+};
+
+// Remove manga from favorites
+exports.removeFavorite = async (req, res) => {
+  try {
+    const token = req.cookies.token;
+    if (!token) return res.status(401).json({ message: 'Unauthorized' });
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    const userId = decoded.id;
+    const { mangaId } = req.body;
+    if (!mangaId) return res.status(400).json({ message: 'mangaId required' });
+
+    const user = await userModel.findById(userId);
+    if (!user) return res.status(404).json({ message: 'User not found' });
+    user.favorites = (user.favorites || []).filter((f) => String(f) !== String(mangaId));
+    await user.save();
+    return res.status(200).json({ message: 'Removed from favorites', favorites: user.favorites });
+  } catch (err) {
+    console.error('removeFavorite error', err.message);
+    return res.status(500).json({ message: 'Internal Server Error' });
+  }
+};
+
+// Get populated favorites
+exports.getFavorites = async (req, res) => {
+  try {
+    const token = req.cookies.token;
+    if (!token) return res.status(401).json({ message: 'Unauthorized' });
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    const userId = decoded.id;
+    const user = await userModel.findById(userId).populate({ path: 'favorites' });
+    if (!user) return res.status(404).json({ message: 'User not found' });
+    return res.status(200).json({ favorites: user.favorites || [] });
+  } catch (err) {
+    console.error('getFavorites error', err.message);
     return res.status(500).json({ message: 'Internal Server Error' });
   }
 };
