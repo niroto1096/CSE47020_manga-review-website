@@ -63,7 +63,7 @@ const Login = () => {
           required
         />
 
-        <Button type="submit" className="w-full">
+        <Button type="submit" className="w-full bg-white text-black dark:bg-black dark:text-white">
           Login
         </Button>
 
