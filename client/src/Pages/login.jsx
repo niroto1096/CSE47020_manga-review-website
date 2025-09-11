@@ -8,21 +8,27 @@ import { UserContext } from "@/Context/UserContext";
 const Login = () => {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const { setRole } = useContext(UserContext);
+  const { setRole, setUserId, setUserName } = useContext(UserContext);
   const navigate = useNavigate();
   const handleLogin = async (e) => {
     e.preventDefault();
 
     try {
       const response = await logIn(email, password);
-      localStorage.setItem("role", response.data.user.role);
-      // Save userId (the MongoDB _id)
-      localStorage.setItem("userId", response.data.user._id);
-      localStorage.setItem("username", response.data.user.name);
+  const user = response.data.user;
+  localStorage.setItem("role", user.role);
+  // Save userId (the MongoDB _id)
+  localStorage.setItem("userId", user._id);
+  localStorage.setItem("username", user.name);
+
+  // Update context immediately so routes react without refresh
+  setRole(user.role);
+  if (setUserId) setUserId(user._id);
+  if (setUserName) setUserName(user.name);
 
       console.log("Logged in user:", response.data.user);
       console.log(response);
-      navigate("/");
+  navigate("/");
     } catch (error) {
       console.log(error);
     }
