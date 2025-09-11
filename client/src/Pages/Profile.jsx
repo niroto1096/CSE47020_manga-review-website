@@ -388,7 +388,7 @@ const Profile = () => {
                     <p className="text-sm text-gray-600 dark:text-gray-400">Not following anyone yet.</p>
                   ) : (
                     <ul className="divide-y divide-gray-200 dark:divide-gray-700">
-                      {followingList.map((u) => (
+          {followingList.map((u) => (
                         <li key={u._id || u.id} className="py-3 flex items-center gap-3">
                           <img
                             src={u.avatar ? (u.avatar.startsWith('http') ? u.avatar : `${IMAGE_BASE}/uploads/${u.avatar.replace(/^\/+/,'')}`) : 'https://c8.alamy.com/comp/2PWERD5/student-avatar-illustration-simple-cartoon-user-portrait-user-profile-icon-youth-avatar-vector-illustration-2PWERD5.jpg'}
@@ -402,7 +402,7 @@ const Profile = () => {
                               className="font-medium hover:underline"
                               onClick={() => setShowFollowing(false)}
                             >
-                              {u.name || 'User'}
+            {u.name || 'User'}
                             </a>
                           </div>
                         </li>

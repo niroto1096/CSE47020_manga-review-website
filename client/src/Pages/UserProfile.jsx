@@ -75,7 +75,7 @@ export default function UserProfile() {
         <img src={avatarUrl(user.avatar)} alt="avatar" className="w-20 h-20 rounded-full object-cover" />
         <div>
           <h2 className="text-2xl font-semibold">{user.name || 'User'}</h2>
-          <div className="text-sm text-gray-500">{user._id}</div>
+          {/* Hide internal IDs from UI */}
         </div>
         <div className="ml-auto">
           {!isMe && (
@@ -92,10 +92,10 @@ export default function UserProfile() {
         <div className="p-4 bg-white dark:bg-gray-800 rounded shadow">
           <h3 className="font-semibold mb-2">Following ({user?.following?.length || 0})</h3>
           <ul className="space-y-2">
-            {(user?.following || []).map((u) => (
+      {(user?.following || []).map((u) => (
               <li key={`f-${u._id || u}`} className="flex items-center gap-3">
                 <img src={avatarUrl(u.avatar)} alt="a" className="w-8 h-8 rounded-full" />
-                <Link to={`/user/${u._id || u}`} className="text-blue-600">{u.name || u._id || u}</Link>
+        <Link to={`/user/${u._id || u}`} className="text-blue-600">{u.name || 'User'}</Link>
               </li>
             ))}
           </ul>
@@ -103,10 +103,10 @@ export default function UserProfile() {
         <div className="p-4 bg-white dark:bg-gray-800 rounded shadow">
           <h3 className="font-semibold mb-2">Followers ({user?.followers?.length || 0})</h3>
           <ul className="space-y-2">
-            {(user?.followers || []).map((u) => (
+      {(user?.followers || []).map((u) => (
               <li key={`r-${u._id || u}`} className="flex items-center gap-3">
                 <img src={avatarUrl(u.avatar)} alt="a" className="w-8 h-8 rounded-full" />
-                <Link to={`/user/${u._id || u}`} className="text-blue-600">{u.name || u._id || u}</Link>
+        <Link to={`/user/${u._id || u}`} className="text-blue-600">{u.name || 'User'}</Link>
               </li>
             ))}
           </ul>
