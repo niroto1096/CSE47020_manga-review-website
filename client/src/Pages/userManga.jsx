@@ -97,9 +97,6 @@ const UserManga = () => {
                 className="rounded-md w-full h-[220px] object-cover mb-2 border border-gray-300 dark:border-gray-700"
                 onError={(e) => (e.currentTarget.style.display = "none")}
               />
-              <p className="text-xs text-blue-700 dark:text-blue-400 mb-1 hover:underline">
-                + Add to list
-              </p>
               <h3 className="text-center font-semibold text-sm line-clamp-2">
                 {m.title}
               </h3>
