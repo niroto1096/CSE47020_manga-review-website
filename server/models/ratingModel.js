@@ -15,7 +15,7 @@ const ratingSchema = new mongoose.Schema(
     score: {
       type: Number,
       min: 1,
-      max: 10, // since you’re using 1–10 scale
+      max: 5, 
       required: true,
     },
   },

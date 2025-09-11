@@ -14,3 +14,8 @@ export const uploadAvatar = (formData) => API.post('/avatar', formData, { header
 export const addFavoriteApi = (mangaId) => API.post('/favorites/add', { mangaId })
 export const removeFavoriteApi = (mangaId) => API.post('/favorites/remove', { mangaId })
 export const getFavoritesApi = () => API.get('/favorites')
+// social
+export const followApi = (targetUserId) => API.post('/follow', { targetUserId })
+export const unfollowApi = (targetUserId) => API.post('/unfollow', { targetUserId })
+export const getFeedApi = () => API.get('/feed')
+export const getPublicUserApi = (id) => API.get(`/user/${id}`)

@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { getAllManga, getMyPersonalList, getUserReviewApi, getReviewSummaryApi } from "@/Api/mangaApi";
-import { uploadAvatar, verifyUser as verifyUserApi } from "@/Api/authApi";
+import { uploadAvatar, verifyUser as verifyUserApi, getPublicUserApi } from "@/Api/authApi";
 
 const IMAGE_BASE =
   import.meta.env.VITE_API_URL?.replace(/\/+$/, "") || "http://localhost:8000";
@@ -22,6 +22,8 @@ const Profile = () => {
   const [avgRatings, setAvgRatings] = useState({}); // { [mangaId]: { average, count } }
   const [avatar, setAvatar] = useState(null);
   const [avatarPreview, setAvatarPreview] = useState(null);
+  const [followersCount, setFollowersCount] = useState(0);
+  const [followingCount, setFollowingCount] = useState(0);
   const fileRef = useRef();
 
   // helpers
@@ -62,6 +64,16 @@ const Profile = () => {
           // ignore
         }
         if (userId) {
+          // also fetch followers count for this user
+          try {
+            const { data } = await getPublicUserApi(userId);
+            const fc = Array.isArray(data?.user?.followers) ? data.user.followers.length : 0;
+            setFollowersCount(fc);
+            const fgc = Array.isArray(data?.user?.following) ? data.user.following.length : 0;
+            setFollowingCount(fgc);
+          } catch (e) {
+            // ignore
+          }
           const res = await getMyPersonalList(userId, 1, 20);
           const list = res?.data?.data || res?.data?.items || res?.data || [];
           // hide entries with status === 'unread' (case-insensitive)
@@ -283,6 +295,9 @@ const Profile = () => {
           <h1 className="text-3xl font-bold">{username}</h1>
           <p className="text-gray-600 dark:text-gray-400 text-sm">
             Joined: Jan 2025
+          </p>
+          <p className="text-gray-700 dark:text-gray-300 text-sm mt-1">
+            Followers: {followersCount} • Following: {followingCount}
           </p>
           {avatarPreview && (
             <div className="mt-2 flex items-center gap-2">

@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState } from "react";
+import { Link } from 'react-router-dom';
 import { getCommentsApi, addCommentApi, reactCommentApi, editCommentApi } from "@/Api/mangaApi";
 const IMAGE_BASE = import.meta.env.VITE_API_URL?.replace(/\/+$/, "") || "http://localhost:8000";
 
@@ -172,13 +173,13 @@ const CommentItem = ({ c, onReact, onEdit, currentUserId }) => {
                     dark:bg-[#171717] dark:border-gray-700"
     >
       <div className="flex items-center justify-between">
-        <div className="flex items-center gap-3">
+        <Link to={`/user/${c?.user?._id || c?.user?.id || c?.user}`} className="flex items-center gap-3">
           <img src={avatarUrl()} alt={author} className="w-8 h-8 rounded-full object-cover border" onError={(e)=>e.currentTarget.style.display='none'} />
           <div className="text-xs text-gray-500 dark:text-gray-400">
             <div className="truncate max-w-[70%]">@{author}</div>
             <div className="text-[11px]">{when}</div>
           </div>
-        </div>
+        </Link>
       </div>
 
       {isEditing ? (

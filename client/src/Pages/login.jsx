@@ -8,31 +8,20 @@ import { UserContext } from "@/Context/UserContext";
 const Login = () => {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const { setRole, setUserId, setUserName } = useContext(UserContext);
+  const { setRole } = useContext(UserContext);
   const navigate = useNavigate();
   const handleLogin = async (e) => {
     e.preventDefault();
 
     try {
       const response = await logIn(email, password);
-      const user = response?.data?.user;
-      if (user) {
-        // Persist for reloads
-        localStorage.setItem("role", user.role);
-        localStorage.setItem("userId", user._id);
-        localStorage.setItem("username", user.name || user.username || "");
+      localStorage.setItem("role", response.data.user.role);
+      // Save userId (the MongoDB _id)
+      localStorage.setItem("userId", response.data.user._id);
+      localStorage.setItem("username", response.data.user.name);
 
-        // Update context so UI updates immediately
-        try {
-          setRole && setRole(user.role);
-          setUserId && setUserId(user._id);
-          setUserName && setUserName(user.name || user.username || "");
-        } catch (e) {
-          // ignore if context setters are not present
-        }
-      }
-
-      console.log("Logged in user:", user);
+      console.log("Logged in user:", response.data.user);
+      console.log(response);
       navigate("/");
     } catch (error) {
       console.log(error);
@@ -63,7 +52,7 @@ const Login = () => {
           required
         />
 
-        <Button type="submit" className="w-full bg-white text-black dark:bg-black dark:text-white">
+        <Button type="submit" className="w-full">
           Login
         </Button>
 

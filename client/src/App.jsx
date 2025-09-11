@@ -8,14 +8,17 @@ import Login from "./Pages/login";
 import PublicRoute from "./Routes/publicRoute";
 import ProtectedRoute from "./Routes/protectedRoute";
 
-import Unauthorized from "./Pages/Unauthorized";
-import Navbar from "./Pages/Navbar";
+import Unauthorized from "./Pages/unauthorized";
+import Navbar from "./Pages/navbar";
 import Home from "./Pages/Home";
 import AllManga from "./Pages/AllManga";
 import UploadManga from "./Pages/uploadManga";
 import UserManga from "./Pages/userManga";
 import Details from "./Pages/Details";
 import Profile from "./Pages/Profile";
+// New pages (added safely)
+import Feed from "./Pages/Feed";
+import UserProfile from "./Pages/UserProfile";
 import "slick-carousel/slick/slick.css";
 import "slick-carousel/slick/slick-theme.css";
 
@@ -124,6 +127,23 @@ function AppRoutes() {
         element={
           <ProtectedRoute role={["user", "admin"]}>
             <Details />
+          </ProtectedRoute>
+        }
+      />
+      {/* New routes: do not affect existing ones */}
+      <Route
+        path="/feed"
+        element={
+          <ProtectedRoute role={["user", "admin"]}>
+            <Feed />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/user/:id"
+        element={
+          <ProtectedRoute role={["user", "admin"]}>
+            <UserProfile />
           </ProtectedRoute>
         }
       />
