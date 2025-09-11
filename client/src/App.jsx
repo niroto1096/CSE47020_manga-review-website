@@ -1,6 +1,6 @@
 // App.jsx
 import React, { useContext, useEffect } from "react"; // ✅ import useEffect
-import { Route, Routes, Navigate } from "react-router-dom";
+import { Route, Routes, Navigate, useLocation } from "react-router-dom";
 
 import Registration from "./Pages/registration";
 import Otp from "./Pages/otp";
@@ -25,6 +25,7 @@ import "slick-carousel/slick/slick-theme.css";
 import UserProvider, { UserContext } from "./Context/UserContext";
 
 function App() {
+  const location = useLocation();
   useEffect(() => {
     const stored = localStorage.getItem("theme");
     const initial = stored || "dark"; // default = dark
@@ -35,7 +36,7 @@ function App() {
       document.documentElement.classList.remove("dark");
       localStorage.setItem("theme", "light");
     }
-  }, []);
+  }, [location.pathname]);
 
   return (
     <UserProvider>

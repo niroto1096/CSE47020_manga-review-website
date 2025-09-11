@@ -64,6 +64,8 @@ export default function UserProfile() {
     try {
       await followApi(id);
       await load();
+  // notify app to refresh following-dependent views
+  window.dispatchEvent(new CustomEvent('social:follow-updated', { detail: { targetId: id, action: 'follow' } }));
     } catch (e) {
       console.error(e);
       setIsFollowing(before);
@@ -75,7 +77,11 @@ export default function UserProfile() {
     setIsFollowing(false);
     try {
       await unfollowApi(id);
-      await load();
+  // update local user followers list optimistically (remove me)
+  setUser((prev) => prev ? { ...prev, followers: (prev.followers || []).filter((u) => String(u._id || u) !== String(me)) } : prev);
+  await load();
+  // notify app to refresh following-dependent views
+  window.dispatchEvent(new CustomEvent('social:follow-updated', { detail: { targetId: id, action: 'unfollow' } }));
     } catch (e) {
       console.error(e);
       setIsFollowing(before);

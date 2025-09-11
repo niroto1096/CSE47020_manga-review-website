@@ -8,18 +8,23 @@ export default function Feed() {
   const [feed, setFeed] = useState([]);
   const [loading, setLoading] = useState(false);
 
+  const load = async () => {
+    setLoading(true);
+    try {
+      const res = await getFeedApi();
+      setFeed(res?.data?.feed || []);
+    } catch (e) {
+      console.error('Failed to load feed', e);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   useEffect(() => {
-    (async () => {
-      setLoading(true);
-      try {
-        const res = await getFeedApi();
-        setFeed(res?.data?.feed || []);
-      } catch (e) {
-        console.error('Failed to load feed', e);
-      } finally {
-        setLoading(false);
-      }
-    })();
+    load();
+    const onSocial = () => load();
+    window.addEventListener('social:follow-updated', onSocial);
+    return () => window.removeEventListener('social:follow-updated', onSocial);
   }, []);
 
   if (loading) return <div className="p-6 mt-16">Loading feed...</div>;

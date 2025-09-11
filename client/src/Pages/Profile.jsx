@@ -200,6 +200,22 @@ const Profile = () => {
     })();
   }, [userId]);
 
+  // react to follow/unfollow events to refresh counters
+  useEffect(() => {
+    const onSocial = async () => {
+      if (!userId) return;
+      try {
+        const { data } = await getPublicUserApi(userId);
+        setFollowersCount(Array.isArray(data?.user?.followers) ? data.user.followers.length : 0);
+        setFollowingCount(Array.isArray(data?.user?.following) ? data.user.following.length : 0);
+        setFollowersList(Array.isArray(data?.user?.followers) ? data.user.followers : []);
+        setFollowingList(Array.isArray(data?.user?.following) ? data.user.following : []);
+      } catch {}
+    };
+    window.addEventListener('social:follow-updated', onSocial);
+    return () => window.removeEventListener('social:follow-updated', onSocial);
+  }, [userId]);
+
   const avatarUrl = (a) => {
   if (!a) return "https://c8.alamy.com/comp/2PWERD5/student-avatar-illustration-simple-cartoon-user-portrait-user-profile-icon-youth-avatar-vector-illustration-2PWERD5.jpg";
   if (a.startsWith('http')) return a;
