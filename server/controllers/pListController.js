@@ -1,4 +1,5 @@
 const PersonalList = require("../models/personalListModel");
+const userModel = require("../models/userModel");
 
 // Create or update an entry
 const updatePersonalList = async (req, res) => {
@@ -94,4 +95,22 @@ module.exports = {
   updatePersonalList,
   getStatus,
   getList,
+};
+
+// PUBLIC: get a user's personal list if privacy allows
+module.exports.getListPublic = async (req, res) => {
+  try {
+    const { id } = req.params; // user id
+    const viewerId = req.user?.id || null;
+    const user = await userModel.findById(id).select('personalListPrivacy');
+    if (!user) return res.status(404).json({ message: 'User not found' });
+    if ((user.personalListPrivacy || 'private') !== 'public') {
+      return res.status(200).json({ items: [], privacy: 'private' });
+    }
+    const items = await PersonalList.find({ user: id, status: { $ne: 'Unread' } }).populate('manga');
+    return res.status(200).json({ items, privacy: 'public' });
+  } catch (err) {
+    console.error('getListPublic error:', err.message);
+    return res.status(500).json({ message: 'Server error' });
+  }
 };

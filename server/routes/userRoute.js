@@ -9,11 +9,15 @@ const {
   addFavorite,
   removeFavorite,
   getFavorites,
+  updatePrivacy,
+  getUserFavoritesPublic,
   followUser,
   unfollowUser,
   getFeed,
   getPublicUser,
 } = require("../controllers/auth");
+const { getListPublic } = require("../controllers/pListController");
+const { getUserReviewsPublic } = require("../controllers/reviewController");
 const upload = require('../middlewares/multer');
 
 const router = express.Router();
@@ -28,6 +32,14 @@ router.post('/avatar', upload.single('avatar'), updateAvatar);
 router.post('/favorites/add', addFavorite);
 router.post('/favorites/remove', removeFavorite);
 router.get('/favorites', getFavorites);
+// privacy settings
+router.post("/privacy", updatePrivacy);
+// public favorites for a user
+router.get("/user/:id/favorites-public", getUserFavoritesPublic);
+// public personal list for a user (respects privacy)
+router.get("/user/:id/personal-list-public", getListPublic);
+// public reviews for a user (respects privacy)
+router.get("/user/:id/reviews-public", getUserReviewsPublic);
 // new social routes
 router.post('/follow', followUser);
 router.post('/unfollow', unfollowUser);

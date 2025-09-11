@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { getAllManga, getMyPersonalList, getUserReviewApi, getReviewSummaryApi } from "@/Api/mangaApi";
-import { uploadAvatar, verifyUser as verifyUserApi, getPublicUserApi } from "@/Api/authApi";
+import { uploadAvatar, verifyUser as verifyUserApi, getPublicUserApi, updatePrivacyApi } from "@/Api/authApi";
 
 const IMAGE_BASE =
   import.meta.env.VITE_API_URL?.replace(/\/+$/, "") || "http://localhost:8000";
@@ -29,6 +29,8 @@ const Profile = () => {
   const [followingList, setFollowingList] = useState([]);
   const [showFollowing, setShowFollowing] = useState(false);
   const fileRef = useRef();
+  // privacy states (default private until verified fetch)
+  const [privacy, setPrivacy] = useState({ personalList: 'private', reviewed: 'private', favorites: 'private' });
 
   // helpers
   const isReviewedByUser = (m) => {
@@ -64,6 +66,13 @@ const Profile = () => {
           const v = await verifyUserApi();
           const u = v?.data?.user;
           if (u?.avatar) setAvatar(u.avatar);
+          if (u) {
+            setPrivacy({
+              personalList: u.personalListPrivacy || 'private',
+              reviewed: u.reviewedPrivacy || 'private',
+              favorites: u.favoritesPrivacy || 'private',
+            });
+          }
         } catch (e) {
           // ignore
         }
@@ -222,6 +231,24 @@ const Profile = () => {
     }
   };
 
+  const updatePrivacy = async (key, value) => {
+    try {
+      const payload = {};
+      if (key === 'personalList') payload.personalListPrivacy = value;
+      if (key === 'reviewed') payload.reviewedPrivacy = value;
+      if (key === 'favorites') payload.favoritesPrivacy = value;
+      const { data } = await updatePrivacyApi(payload);
+      const u = data?.user || {};
+      setPrivacy({
+        personalList: u.personalListPrivacy || privacy.personalList,
+        reviewed: u.reviewedPrivacy || privacy.reviewed,
+        favorites: u.favoritesPrivacy || privacy.favorites,
+      });
+    } catch (e) {
+      console.error('update privacy failed', e);
+    }
+  };
+
   // Big vertical card (for all sections)
   const BigCard = ({ m, status, userRating }) => (
     <div
@@ -327,6 +354,21 @@ const Profile = () => {
               <button onClick={() => { setAvatarPreview(null); if (fileRef.current) fileRef.current.value = ''; }} className="px-3 py-1 bg-gray-300 dark:bg-gray-700 text-sm rounded">Cancel</button>
             </div>
           )}
+          {/* Privacy toggles */}
+          <div className="mt-4 flex flex-wrap gap-2 text-xs">
+            <div className="flex items-center gap-1">
+              <span>📚 List:</span>
+              <button onClick={() => updatePrivacy('personalList', privacy.personalList === 'public' ? 'private' : 'public')} className={`px-2 py-0.5 rounded ${privacy.personalList==='public'?'bg-green-600 text-white':'bg-gray-300 dark:bg-gray-700'}`}>{privacy.personalList}</button>
+            </div>
+            <div className="flex items-center gap-1">
+              <span>📝 Reviews:</span>
+              <button onClick={() => updatePrivacy('reviewed', privacy.reviewed === 'public' ? 'private' : 'public')} className={`px-2 py-0.5 rounded ${privacy.reviewed==='public'?'bg-green-600 text-white':'bg-gray-300 dark:bg-gray-700'}`}>{privacy.reviewed}</button>
+            </div>
+            <div className="flex items-center gap-1">
+              <span>💖 Favorites:</span>
+              <button onClick={() => updatePrivacy('favorites', privacy.favorites === 'public' ? 'private' : 'public')} className={`px-2 py-0.5 rounded ${privacy.favorites==='public'?'bg-green-600 text-white':'bg-gray-300 dark:bg-gray-700'}`}>{privacy.favorites}</button>
+            </div>
+          </div>
         </div>
         
       </div>
@@ -440,7 +482,10 @@ const Profile = () => {
             </div>
           )}
           <section>
-            <h2 className="text-2xl font-semibold mb-4">📚 My Personal List</h2>
+            <div className="flex items-center justify-between mb-2">
+              <h2 className="text-2xl font-semibold">📚 My Personal List</h2>
+              <span className="text-xs px-2 py-0.5 rounded bg-gray-200 dark:bg-gray-700">{privacy.personalList === 'public' ? 'Public' : 'Private'}</span>
+            </div>
             {personalList.length === 0 ? (
               <p className="text-gray-600 dark:text-gray-400">
                 You don’t have anything in your list yet.
@@ -460,7 +505,10 @@ const Profile = () => {
 
           {/* Reviewed */}
           <section>
-            <h2 className="text-2xl font-semibold mb-4">📝 Reviewed by You</h2>
+            <div className="flex items-center justify-between mb-2">
+              <h2 className="text-2xl font-semibold">📝 Reviewed by You</h2>
+              <span className="text-xs px-2 py-0.5 rounded bg-gray-200 dark:bg-gray-700">{privacy.reviewed === 'public' ? 'Public' : 'Private'}</span>
+            </div>
             {userId ? (
               reviewed.length === 0 ? (
                 <p className="text-gray-600 dark:text-gray-400">
@@ -502,7 +550,10 @@ const Profile = () => {
 
           {/* Favorites */}
           <section>
-            <h2 className="text-2xl font-semibold mb-4">💖 Favorites</h2>
+            <div className="flex items-center justify-between mb-2">
+              <h2 className="text-2xl font-semibold">💖 Favorites</h2>
+              <span className="text-xs px-2 py-0.5 rounded bg-gray-200 dark:bg-gray-700">{privacy.favorites === 'public' ? 'Public' : 'Private'}</span>
+            </div>
             {favoriteList.length === 0 ? (
               <p className="text-gray-600 dark:text-gray-400">You don't have favorites yet.</p>
             ) : (

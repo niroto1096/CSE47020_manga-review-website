@@ -245,6 +245,40 @@ exports.getFavorites = async (req, res) => {
   }
 };
 
+// Update privacy settings (auth required)
+exports.updatePrivacy = async (req, res) => {
+  try {
+    const token = req.cookies.token;
+    if (!token) return res.status(401).json({ message: 'Unauthorized' });
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    const userId = decoded.id;
+    const { personalListPrivacy, reviewedPrivacy, favoritesPrivacy } = req.body;
+    const allowed = (v) => (v === 'public' || v === 'private');
+    const update = {};
+    if (allowed(personalListPrivacy)) update.personalListPrivacy = personalListPrivacy;
+    if (allowed(reviewedPrivacy)) update.reviewedPrivacy = reviewedPrivacy;
+    if (allowed(favoritesPrivacy)) update.favoritesPrivacy = favoritesPrivacy;
+    const user = await userModel.findByIdAndUpdate(userId, update, { new: true }).select('-password');
+    return res.status(200).json({ message: 'Privacy updated', user });
+  } catch (err) {
+    console.error('updatePrivacy error', err.message);
+    return res.status(500).json({ message: 'Internal Server Error' });
+  }
+};
+
+// Public: get favorites of a specific user (for public profile views)
+exports.getUserFavoritesPublic = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const user = await userModel.findById(id).populate({ path: 'favorites' }).select('favorites favoritesPrivacy');
+    if (!user) return res.status(404).json({ message: 'User not found' });
+    return res.status(200).json({ favorites: user.favorites || [], privacy: user.favoritesPrivacy || 'private' });
+  } catch (err) {
+    console.error('getUserFavoritesPublic error', err.message);
+    return res.status(500).json({ message: 'Internal Server Error' });
+  }
+};
+
 // Follow another user
 exports.followUser = async (req, res) => {
   try {
