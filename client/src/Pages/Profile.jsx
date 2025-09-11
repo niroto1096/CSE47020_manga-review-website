@@ -24,6 +24,10 @@ const Profile = () => {
   const [avatarPreview, setAvatarPreview] = useState(null);
   const [followersCount, setFollowersCount] = useState(0);
   const [followingCount, setFollowingCount] = useState(0);
+  const [followersList, setFollowersList] = useState([]);
+  const [showFollowers, setShowFollowers] = useState(false);
+  const [followingList, setFollowingList] = useState([]);
+  const [showFollowing, setShowFollowing] = useState(false);
   const fileRef = useRef();
 
   // helpers
@@ -71,6 +75,8 @@ const Profile = () => {
             setFollowersCount(fc);
             const fgc = Array.isArray(data?.user?.following) ? data.user.following.length : 0;
             setFollowingCount(fgc);
+            setFollowersList(Array.isArray(data?.user?.followers) ? data.user.followers : []);
+            setFollowingList(Array.isArray(data?.user?.following) ? data.user.following : []);
           } catch (e) {
             // ignore
           }
@@ -297,7 +303,23 @@ const Profile = () => {
             Joined: Jan 2025
           </p>
           <p className="text-gray-700 dark:text-gray-300 text-sm mt-1">
-            Followers: {followersCount} • Following: {followingCount}
+            <button
+              type="button"
+              className="underline hover:text-blue-600"
+              onClick={() => setShowFollowers(true)}
+              title="View followers"
+            >
+              Followers: {followersCount}
+            </button>
+            <span className="mx-2">•</span>
+            <button
+              type="button"
+              className="underline hover:text-blue-600"
+              onClick={() => setShowFollowing(true)}
+              title="View following"
+            >
+              Following: {followingCount}
+            </button>
           </p>
           {avatarPreview && (
             <div className="mt-2 flex items-center gap-2">
@@ -315,6 +337,82 @@ const Profile = () => {
         </p>
       ) : (
         <div className="max-w-6xl mx-auto space-y-10">
+          {showFollowers && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center">
+              <div className="absolute inset-0 bg-black/50" onClick={() => setShowFollowers(false)} />
+              <div className="relative bg-white dark:bg-gray-900 rounded-lg shadow-xl max-w-md w-full mx-4">
+                <div className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-gray-700">
+                  <h3 className="text-lg font-semibold">Followers ({followersCount})</h3>
+                  <button className="text-sm px-2 py-1 rounded bg-gray-200 dark:bg-gray-700" onClick={() => setShowFollowers(false)}>Close</button>
+                </div>
+                <div className="max-h-80 overflow-y-auto p-4">
+                  {followersList.length === 0 ? (
+                    <p className="text-sm text-gray-600 dark:text-gray-400">No followers yet.</p>
+                  ) : (
+                    <ul className="divide-y divide-gray-200 dark:divide-gray-700">
+                      {followersList.map((u) => (
+                        <li key={u._id || u.id} className="py-3 flex items-center gap-3">
+                          <img
+                            src={u.avatar ? (u.avatar.startsWith('http') ? u.avatar : `${IMAGE_BASE}/uploads/${u.avatar.replace(/^\/+/,'')}`) : 'https://c8.alamy.com/comp/2PWERD5/student-avatar-illustration-simple-cartoon-user-portrait-user-profile-icon-youth-avatar-vector-illustration-2PWERD5.jpg'}
+                            alt={u.name || 'User'}
+                            className="w-10 h-10 rounded-full object-cover"
+                            onError={(e) => (e.currentTarget.style.display = 'none')}
+                          />
+                          <div className="flex-1 min-w-0">
+                            <a
+                              href={`/user/${u._id || u.id}`}
+                              className="font-medium hover:underline"
+                              onClick={() => setShowFollowers(false)}
+                            >
+                              {u.name || 'User'}
+                            </a>
+                          </div>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
+          {showFollowing && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center">
+              <div className="absolute inset-0 bg-black/50" onClick={() => setShowFollowing(false)} />
+              <div className="relative bg-white dark:bg-gray-900 rounded-lg shadow-xl max-w-md w-full mx-4">
+                <div className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-gray-700">
+                  <h3 className="text-lg font-semibold">Following ({followingCount})</h3>
+                  <button className="text-sm px-2 py-1 rounded bg-gray-200 dark:bg-gray-700" onClick={() => setShowFollowing(false)}>Close</button>
+                </div>
+                <div className="max-h-80 overflow-y-auto p-4">
+                  {followingList.length === 0 ? (
+                    <p className="text-sm text-gray-600 dark:text-gray-400">Not following anyone yet.</p>
+                  ) : (
+                    <ul className="divide-y divide-gray-200 dark:divide-gray-700">
+                      {followingList.map((u) => (
+                        <li key={u._id || u.id} className="py-3 flex items-center gap-3">
+                          <img
+                            src={u.avatar ? (u.avatar.startsWith('http') ? u.avatar : `${IMAGE_BASE}/uploads/${u.avatar.replace(/^\/+/,'')}`) : 'https://c8.alamy.com/comp/2PWERD5/student-avatar-illustration-simple-cartoon-user-portrait-user-profile-icon-youth-avatar-vector-illustration-2PWERD5.jpg'}
+                            alt={u.name || 'User'}
+                            className="w-10 h-10 rounded-full object-cover"
+                            onError={(e) => (e.currentTarget.style.display = 'none')}
+                          />
+                          <div className="flex-1 min-w-0">
+                            <a
+                              href={`/user/${u._id || u.id}`}
+                              className="font-medium hover:underline"
+                              onClick={() => setShowFollowing(false)}
+                            >
+                              {u.name || 'User'}
+                            </a>
+                          </div>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
           {/* Personal List */}
           {DEBUG && (
             <div className="mb-4 p-3 bg-yellow-50 border border-yellow-200 rounded text-sm text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200">
