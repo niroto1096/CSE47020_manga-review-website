@@ -15,25 +15,20 @@ const Login = () => {
 
     try {
       const response = await logIn(email, password);
-      const user = response?.data?.user;
-      if (user) {
-        // Persist for reloads
-        localStorage.setItem("role", user.role);
-        localStorage.setItem("userId", user._id);
-        localStorage.setItem("username", user.name || user.username || "");
+  const user = response.data.user;
+  localStorage.setItem("role", user.role);
+  // Save userId (the MongoDB _id)
+  localStorage.setItem("userId", user._id);
+  localStorage.setItem("username", user.name);
 
-        // Update context so UI updates immediately
-        try {
-          setRole && setRole(user.role);
-          setUserId && setUserId(user._id);
-          setUserName && setUserName(user.name || user.username || "");
-        } catch (e) {
-          // ignore if context setters are not present
-        }
-      }
+  // Update context immediately so routes react without refresh
+  setRole(user.role);
+  if (setUserId) setUserId(user._id);
+  if (setUserName) setUserName(user.name);
 
-      console.log("Logged in user:", user);
-      navigate("/");
+      console.log("Logged in user:", response.data.user);
+      console.log(response);
+  navigate("/");
     } catch (error) {
       console.log(error);
     }
@@ -63,7 +58,7 @@ const Login = () => {
           required
         />
 
-        <Button type="submit" className="w-full bg-white text-black dark:bg-black dark:text-white">
+        <Button type="submit" className="w-full">
           Login
         </Button>
 

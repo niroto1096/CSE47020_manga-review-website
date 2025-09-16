@@ -1,11 +1,12 @@
 import { useContext, useEffect, useState } from "react";
 import { Navigate } from "react-router-dom";
 import { verifyUser } from "../Api/authApi";
-import { UserContext } from "../Context/userContext";
+import { UserContext } from "../Context/UserContext";
 
 const ProtectedRoute = ({ children, role: requiredRole }) => {
   const [isAuthenticated, setIsAuthenticated] = useState(null);
   const { setUserId, setUserName, role, setRole } = useContext(UserContext);
+  const storedRole = typeof window !== 'undefined' ? localStorage.getItem('role') : null;
 
   useEffect(() => {
     const verify = async () => {
@@ -30,18 +31,18 @@ const ProtectedRoute = ({ children, role: requiredRole }) => {
   if (isAuthenticated === null) return <div>Loading...</div>;
 
   // If not authenticated or role is empty, redirect to login
-  if (!isAuthenticated || !role) {
+  if (!isAuthenticated || !(role || storedRole)) {
     return <Navigate to="/login" replace />;
   }
 
   // Role-based access control
   if (requiredRole) {
     if (Array.isArray(requiredRole)) {
-      if (!requiredRole.includes(role)) {
+  if (!requiredRole.includes(role || storedRole)) {
         return <Navigate to="/unauthorized" replace />;
       }
     } else {
-      if (role !== requiredRole) {
+  if ((role || storedRole) !== requiredRole) {
         return <Navigate to="/unauthorized" replace />;
       }
     }

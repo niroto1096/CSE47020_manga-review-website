@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from "react";
+import { Link } from 'react-router-dom';
 const IMAGE_BASE = import.meta.env.VITE_API_URL?.replace(/\/+$/, "") || "http://localhost:8000";
 import { 
   createOrUpdateReviewApi, 
@@ -355,6 +356,9 @@ const ReviewPanel = ({ mangaId, currentUserId }) => {
                 <div className="flex items-center justify-between mb-2">
                   <div className="flex items-center gap-2">
                       {/** avatar */}
+                      <Link to={`/user/${review.user?._id || review.user?.id || review.user}`}
+                        className="flex items-center gap-2"
+                      >
                       <img
                         src={(() => {
                           const a = review.user?.avatar;
@@ -370,6 +374,7 @@ const ReviewPanel = ({ mangaId, currentUserId }) => {
                       <span className="font-medium text-gray-900 dark:text-gray-100">
                         {review.user?.name || review.user?.username || "Anonymous"}
                       </span>
+                      </Link>
                     {renderStars(review.rating)}
                   </div>
                   <span className="text-xs text-gray-500 dark:text-gray-400">

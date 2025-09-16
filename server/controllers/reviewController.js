@@ -2,6 +2,7 @@ const mongoose = require("mongoose");
 const Joi = require("joi");
 const Review = require("../models/reviewModel");
 const Manga = require("../models/mangaModel");
+const userModel = require("../models/userModel");
 
 // Validate request body for creating/updating reviews
 const reviewSchema = Joi.object({
@@ -293,5 +294,25 @@ exports.getReviewSummary = async (req, res) => {
   } catch (err) {
     console.error("getReviewSummary error:", err);
     res.status(500).json({ message: "Internal server error" });
+  }
+};
+
+// PUBLIC: get a user's reviews if privacy allows
+exports.getUserReviewsPublic = async (req, res) => {
+  try {
+    const { id } = req.params; // user id
+    const user = await userModel.findById(id).select('reviewedPrivacy');
+    if (!user) return res.status(404).json({ message: 'User not found' });
+    if ((user.reviewedPrivacy || 'private') !== 'public') {
+      return res.status(200).json({ items: [], privacy: 'private' });
+    }
+    const items = await Review.find({ user: id })
+      .populate({ path: 'manga' })
+      .sort({ createdAt: -1 })
+      .limit(100);
+    return res.status(200).json({ items, privacy: 'public' });
+  } catch (err) {
+    console.error('getUserReviewsPublic error:', err.message);
+    return res.status(500).json({ message: 'Internal server error' });
   }
 };

@@ -2,6 +2,8 @@ const userModel = require('../models/userModel')
 const otpModel = require('../models/otpModel')
 const nodemailer = require("nodemailer");
 const jwt = require("jsonwebtoken")
+const Review = require('../models/reviewModel')
+const Rating = require('../models/ratingModel')
 
 exports.registration = async (req, res) => {
   try {
@@ -239,6 +241,140 @@ exports.getFavorites = async (req, res) => {
     return res.status(200).json({ favorites: user.favorites || [] });
   } catch (err) {
     console.error('getFavorites error', err.message);
+    return res.status(500).json({ message: 'Internal Server Error' });
+  }
+};
+
+// Update privacy settings (auth required)
+exports.updatePrivacy = async (req, res) => {
+  try {
+    const token = req.cookies.token;
+    if (!token) return res.status(401).json({ message: 'Unauthorized' });
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    const userId = decoded.id;
+    const { personalListPrivacy, reviewedPrivacy, favoritesPrivacy } = req.body;
+    const allowed = (v) => (v === 'public' || v === 'private');
+    const update = {};
+    if (allowed(personalListPrivacy)) update.personalListPrivacy = personalListPrivacy;
+    if (allowed(reviewedPrivacy)) update.reviewedPrivacy = reviewedPrivacy;
+    if (allowed(favoritesPrivacy)) update.favoritesPrivacy = favoritesPrivacy;
+    const user = await userModel.findByIdAndUpdate(userId, update, { new: true }).select('-password');
+    return res.status(200).json({ message: 'Privacy updated', user });
+  } catch (err) {
+    console.error('updatePrivacy error', err.message);
+    return res.status(500).json({ message: 'Internal Server Error' });
+  }
+};
+
+// Public: get favorites of a specific user (for public profile views)
+exports.getUserFavoritesPublic = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const user = await userModel.findById(id).populate({ path: 'favorites' }).select('favorites favoritesPrivacy');
+    if (!user) return res.status(404).json({ message: 'User not found' });
+    return res.status(200).json({ favorites: user.favorites || [], privacy: user.favoritesPrivacy || 'private' });
+  } catch (err) {
+    console.error('getUserFavoritesPublic error', err.message);
+    return res.status(500).json({ message: 'Internal Server Error' });
+  }
+};
+
+// Follow another user
+exports.followUser = async (req, res) => {
+  try {
+    const token = req.cookies.token;
+    if (!token) return res.status(401).json({ message: 'Unauthorized' });
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    const userId = decoded.id;
+    const { targetUserId } = req.body;
+    if (!targetUserId) return res.status(400).json({ message: 'targetUserId required' });
+    if (String(userId) === String(targetUserId)) return res.status(400).json({ message: "Can't follow yourself" });
+
+    const me = await userModel.findById(userId);
+    const target = await userModel.findById(targetUserId);
+    if (!me || !target) return res.status(404).json({ message: 'User not found' });
+    me.following = me.following || [];
+    target.followers = target.followers || [];
+    if (!me.following.map(String).includes(String(targetUserId))) me.following.push(targetUserId);
+    if (!target.followers.map(String).includes(String(userId))) target.followers.push(userId);
+    await me.save();
+    await target.save();
+    return res.status(200).json({ message: 'Followed', following: me.following });
+  } catch (err) {
+    console.error('followUser error', err.message);
+    return res.status(500).json({ message: 'Internal Server Error' });
+  }
+};
+
+// Unfollow
+exports.unfollowUser = async (req, res) => {
+  try {
+    const token = req.cookies.token;
+    if (!token) return res.status(401).json({ message: 'Unauthorized' });
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    const userId = decoded.id;
+    const { targetUserId } = req.body;
+    if (!targetUserId) return res.status(400).json({ message: 'targetUserId required' });
+    const me = await userModel.findById(userId);
+    const target = await userModel.findById(targetUserId);
+    if (!me || !target) return res.status(404).json({ message: 'User not found' });
+    me.following = (me.following || []).filter((f) => String(f) !== String(targetUserId));
+    target.followers = (target.followers || []).filter((f) => String(f) !== String(userId));
+    await me.save();
+    await target.save();
+    return res.status(200).json({ message: 'Unfollowed', following: me.following });
+  } catch (err) {
+    console.error('unfollowUser error', err.message);
+    return res.status(500).json({ message: 'Internal Server Error' });
+  }
+};
+
+// Public user details
+exports.getPublicUser = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const user = await userModel
+      .findById(id)
+      .select('-password')
+      .populate({ path: 'following', select: '_id name avatar' })
+      .populate({ path: 'followers', select: '_id name avatar' });
+    if (!user) return res.status(404).json({ message: 'User not found' });
+    return res.status(200).json({ user });
+  } catch (err) {
+    console.error('getPublicUser error', err.message);
+    return res.status(500).json({ message: 'Internal Server Error' });
+  }
+};
+
+// Activity feed from followed users
+exports.getFeed = async (req, res) => {
+  try {
+    const token = req.cookies.token;
+    if (!token) return res.status(401).json({ message: 'Unauthorized' });
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    const me = await userModel.findById(decoded.id).select('following');
+    const following = me?.following || [];
+    if (!following.length) return res.status(200).json({ feed: [] });
+
+    const reviews = await Review.find({ user: { $in: following } })
+      .populate({ path: 'user', select: '_id name avatar' })
+      .populate({ path: 'manga' })
+      .sort({ createdAt: -1 })
+      .limit(50)
+      .lean();
+    const ratings = await Rating.find({ user: { $in: following } })
+      .populate({ path: 'user', select: '_id name avatar' })
+      .populate({ path: 'manga' })
+      .sort({ createdAt: -1 })
+      .limit(50)
+      .lean();
+    const feed = [
+      ...reviews.map((r) => ({ type: 'review', ...r })),
+      ...ratings.map((r) => ({ type: 'rating', ...r })),
+    ].sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt)).slice(0, 50);
+    return res.status(200).json({ feed });
+  } catch (err) {
+    console.error('getFeed error', err.message);
     return res.status(500).json({ message: 'Internal Server Error' });
   }
 };

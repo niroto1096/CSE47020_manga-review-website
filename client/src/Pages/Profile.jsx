@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { getAllManga, getMyPersonalList, getUserReviewApi, getReviewSummaryApi } from "@/Api/mangaApi";
-import { uploadAvatar, verifyUser as verifyUserApi } from "@/Api/authApi";
+import { uploadAvatar, verifyUser as verifyUserApi, getPublicUserApi, updatePrivacyApi } from "@/Api/authApi";
 
 const IMAGE_BASE =
   import.meta.env.VITE_API_URL?.replace(/\/+$/, "") || "http://localhost:8000";
@@ -22,7 +22,15 @@ const Profile = () => {
   const [avgRatings, setAvgRatings] = useState({}); // { [mangaId]: { average, count } }
   const [avatar, setAvatar] = useState(null);
   const [avatarPreview, setAvatarPreview] = useState(null);
+  const [followersCount, setFollowersCount] = useState(0);
+  const [followingCount, setFollowingCount] = useState(0);
+  const [followersList, setFollowersList] = useState([]);
+  const [showFollowers, setShowFollowers] = useState(false);
+  const [followingList, setFollowingList] = useState([]);
+  const [showFollowing, setShowFollowing] = useState(false);
   const fileRef = useRef();
+  // privacy states (default private until verified fetch)
+  const [privacy, setPrivacy] = useState({ personalList: 'private', reviewed: 'private', favorites: 'private' });
 
   // helpers
   const isReviewedByUser = (m) => {
@@ -58,10 +66,29 @@ const Profile = () => {
           const v = await verifyUserApi();
           const u = v?.data?.user;
           if (u?.avatar) setAvatar(u.avatar);
+          if (u) {
+            setPrivacy({
+              personalList: u.personalListPrivacy || 'private',
+              reviewed: u.reviewedPrivacy || 'private',
+              favorites: u.favoritesPrivacy || 'private',
+            });
+          }
         } catch (e) {
           // ignore
         }
         if (userId) {
+          // also fetch followers count for this user
+          try {
+            const { data } = await getPublicUserApi(userId);
+            const fc = Array.isArray(data?.user?.followers) ? data.user.followers.length : 0;
+            setFollowersCount(fc);
+            const fgc = Array.isArray(data?.user?.following) ? data.user.following.length : 0;
+            setFollowingCount(fgc);
+            setFollowersList(Array.isArray(data?.user?.followers) ? data.user.followers : []);
+            setFollowingList(Array.isArray(data?.user?.following) ? data.user.following : []);
+          } catch (e) {
+            // ignore
+          }
           const res = await getMyPersonalList(userId, 1, 20);
           const list = res?.data?.data || res?.data?.items || res?.data || [];
           // hide entries with status === 'unread' (case-insensitive)
@@ -173,6 +200,22 @@ const Profile = () => {
     })();
   }, [userId]);
 
+  // react to follow/unfollow events to refresh counters
+  useEffect(() => {
+    const onSocial = async () => {
+      if (!userId) return;
+      try {
+        const { data } = await getPublicUserApi(userId);
+        setFollowersCount(Array.isArray(data?.user?.followers) ? data.user.followers.length : 0);
+        setFollowingCount(Array.isArray(data?.user?.following) ? data.user.following.length : 0);
+        setFollowersList(Array.isArray(data?.user?.followers) ? data.user.followers : []);
+        setFollowingList(Array.isArray(data?.user?.following) ? data.user.following : []);
+      } catch {}
+    };
+    window.addEventListener('social:follow-updated', onSocial);
+    return () => window.removeEventListener('social:follow-updated', onSocial);
+  }, [userId]);
+
   const avatarUrl = (a) => {
   if (!a) return "https://c8.alamy.com/comp/2PWERD5/student-avatar-illustration-simple-cartoon-user-portrait-user-profile-icon-youth-avatar-vector-illustration-2PWERD5.jpg";
   if (a.startsWith('http')) return a;
@@ -201,6 +244,24 @@ const Profile = () => {
       if (fileRef.current) fileRef.current.value = '';
     } catch (err) {
       console.error('Avatar upload failed', err);
+    }
+  };
+
+  const updatePrivacy = async (key, value) => {
+    try {
+      const payload = {};
+      if (key === 'personalList') payload.personalListPrivacy = value;
+      if (key === 'reviewed') payload.reviewedPrivacy = value;
+      if (key === 'favorites') payload.favoritesPrivacy = value;
+      const { data } = await updatePrivacyApi(payload);
+      const u = data?.user || {};
+      setPrivacy({
+        personalList: u.personalListPrivacy || privacy.personalList,
+        reviewed: u.reviewedPrivacy || privacy.reviewed,
+        favorites: u.favoritesPrivacy || privacy.favorites,
+      });
+    } catch (e) {
+      console.error('update privacy failed', e);
     }
   };
 
@@ -284,12 +345,46 @@ const Profile = () => {
           <p className="text-gray-600 dark:text-gray-400 text-sm">
             Joined: Jan 2025
           </p>
+          <p className="text-gray-700 dark:text-gray-300 text-sm mt-1">
+            <button
+              type="button"
+              className="underline hover:text-blue-600"
+              onClick={() => setShowFollowers(true)}
+              title="View followers"
+            >
+              Followers: {followersCount}
+            </button>
+            <span className="mx-2">•</span>
+            <button
+              type="button"
+              className="underline hover:text-blue-600"
+              onClick={() => setShowFollowing(true)}
+              title="View following"
+            >
+              Following: {followingCount}
+            </button>
+          </p>
           {avatarPreview && (
             <div className="mt-2 flex items-center gap-2">
               <button onClick={onUploadAvatar} className="px-3 py-1 bg-green-600 text-white rounded text-sm">Upload</button>
               <button onClick={() => { setAvatarPreview(null); if (fileRef.current) fileRef.current.value = ''; }} className="px-3 py-1 bg-gray-300 dark:bg-gray-700 text-sm rounded">Cancel</button>
             </div>
           )}
+          {/* Privacy toggles */}
+          <div className="mt-4 flex flex-wrap gap-2 text-xs">
+            <div className="flex items-center gap-1">
+              <span>📚 List:</span>
+              <button onClick={() => updatePrivacy('personalList', privacy.personalList === 'public' ? 'private' : 'public')} className={`px-2 py-0.5 rounded ${privacy.personalList==='public'?'bg-green-600 text-white':'bg-gray-300 dark:bg-gray-700'}`}>{privacy.personalList}</button>
+            </div>
+            <div className="flex items-center gap-1">
+              <span>📝 Reviews:</span>
+              <button onClick={() => updatePrivacy('reviewed', privacy.reviewed === 'public' ? 'private' : 'public')} className={`px-2 py-0.5 rounded ${privacy.reviewed==='public'?'bg-green-600 text-white':'bg-gray-300 dark:bg-gray-700'}`}>{privacy.reviewed}</button>
+            </div>
+            <div className="flex items-center gap-1">
+              <span>💖 Favorites:</span>
+              <button onClick={() => updatePrivacy('favorites', privacy.favorites === 'public' ? 'private' : 'public')} className={`px-2 py-0.5 rounded ${privacy.favorites==='public'?'bg-green-600 text-white':'bg-gray-300 dark:bg-gray-700'}`}>{privacy.favorites}</button>
+            </div>
+          </div>
         </div>
         
       </div>
@@ -300,6 +395,82 @@ const Profile = () => {
         </p>
       ) : (
         <div className="max-w-6xl mx-auto space-y-10">
+          {showFollowers && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center">
+              <div className="absolute inset-0 bg-black/50" onClick={() => setShowFollowers(false)} />
+              <div className="relative bg-white dark:bg-gray-900 rounded-lg shadow-xl max-w-md w-full mx-4">
+                <div className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-gray-700">
+                  <h3 className="text-lg font-semibold">Followers ({followersCount})</h3>
+                  <button className="text-sm px-2 py-1 rounded bg-gray-200 dark:bg-gray-700" onClick={() => setShowFollowers(false)}>Close</button>
+                </div>
+                <div className="max-h-80 overflow-y-auto p-4">
+                  {followersList.length === 0 ? (
+                    <p className="text-sm text-gray-600 dark:text-gray-400">No followers yet.</p>
+                  ) : (
+                    <ul className="divide-y divide-gray-200 dark:divide-gray-700">
+                      {followersList.map((u) => (
+                        <li key={u._id || u.id} className="py-3 flex items-center gap-3">
+                          <img
+                            src={u.avatar ? (u.avatar.startsWith('http') ? u.avatar : `${IMAGE_BASE}/uploads/${u.avatar.replace(/^\/+/,'')}`) : 'https://c8.alamy.com/comp/2PWERD5/student-avatar-illustration-simple-cartoon-user-portrait-user-profile-icon-youth-avatar-vector-illustration-2PWERD5.jpg'}
+                            alt={u.name || 'User'}
+                            className="w-10 h-10 rounded-full object-cover"
+                            onError={(e) => (e.currentTarget.style.display = 'none')}
+                          />
+                          <div className="flex-1 min-w-0">
+                            <a
+                              href={`/user/${u._id || u.id}`}
+                              className="font-medium hover:underline"
+                              onClick={() => setShowFollowers(false)}
+                            >
+                              {u.name || 'User'}
+                            </a>
+                          </div>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
+          {showFollowing && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center">
+              <div className="absolute inset-0 bg-black/50" onClick={() => setShowFollowing(false)} />
+              <div className="relative bg-white dark:bg-gray-900 rounded-lg shadow-xl max-w-md w-full mx-4">
+                <div className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-gray-700">
+                  <h3 className="text-lg font-semibold">Following ({followingCount})</h3>
+                  <button className="text-sm px-2 py-1 rounded bg-gray-200 dark:bg-gray-700" onClick={() => setShowFollowing(false)}>Close</button>
+                </div>
+                <div className="max-h-80 overflow-y-auto p-4">
+                  {followingList.length === 0 ? (
+                    <p className="text-sm text-gray-600 dark:text-gray-400">Not following anyone yet.</p>
+                  ) : (
+                    <ul className="divide-y divide-gray-200 dark:divide-gray-700">
+          {followingList.map((u) => (
+                        <li key={u._id || u.id} className="py-3 flex items-center gap-3">
+                          <img
+                            src={u.avatar ? (u.avatar.startsWith('http') ? u.avatar : `${IMAGE_BASE}/uploads/${u.avatar.replace(/^\/+/,'')}`) : 'https://c8.alamy.com/comp/2PWERD5/student-avatar-illustration-simple-cartoon-user-portrait-user-profile-icon-youth-avatar-vector-illustration-2PWERD5.jpg'}
+                            alt={u.name || 'User'}
+                            className="w-10 h-10 rounded-full object-cover"
+                            onError={(e) => (e.currentTarget.style.display = 'none')}
+                          />
+                          <div className="flex-1 min-w-0">
+                            <a
+                              href={`/user/${u._id || u.id}`}
+                              className="font-medium hover:underline"
+                              onClick={() => setShowFollowing(false)}
+                            >
+            {u.name || 'User'}
+                            </a>
+                          </div>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
           {/* Personal List */}
           {DEBUG && (
             <div className="mb-4 p-3 bg-yellow-50 border border-yellow-200 rounded text-sm text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200">
@@ -327,7 +498,10 @@ const Profile = () => {
             </div>
           )}
           <section>
-            <h2 className="text-2xl font-semibold mb-4">📚 My Personal List</h2>
+            <div className="flex items-center justify-between mb-2">
+              <h2 className="text-2xl font-semibold">📚 My Personal List</h2>
+              <span className="text-xs px-2 py-0.5 rounded bg-gray-200 dark:bg-gray-700">{privacy.personalList === 'public' ? 'Public' : 'Private'}</span>
+            </div>
             {personalList.length === 0 ? (
               <p className="text-gray-600 dark:text-gray-400">
                 You don’t have anything in your list yet.
@@ -347,7 +521,10 @@ const Profile = () => {
 
           {/* Reviewed */}
           <section>
-            <h2 className="text-2xl font-semibold mb-4">📝 Reviewed by You</h2>
+            <div className="flex items-center justify-between mb-2">
+              <h2 className="text-2xl font-semibold">📝 Reviewed by You</h2>
+              <span className="text-xs px-2 py-0.5 rounded bg-gray-200 dark:bg-gray-700">{privacy.reviewed === 'public' ? 'Public' : 'Private'}</span>
+            </div>
             {userId ? (
               reviewed.length === 0 ? (
                 <p className="text-gray-600 dark:text-gray-400">
@@ -389,7 +566,10 @@ const Profile = () => {
 
           {/* Favorites */}
           <section>
-            <h2 className="text-2xl font-semibold mb-4">💖 Favorites</h2>
+            <div className="flex items-center justify-between mb-2">
+              <h2 className="text-2xl font-semibold">💖 Favorites</h2>
+              <span className="text-xs px-2 py-0.5 rounded bg-gray-200 dark:bg-gray-700">{privacy.favorites === 'public' ? 'Public' : 'Private'}</span>
+            </div>
             {favoriteList.length === 0 ? (
               <p className="text-gray-600 dark:text-gray-400">You don't have favorites yet.</p>
             ) : (

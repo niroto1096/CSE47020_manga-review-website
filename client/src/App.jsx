@@ -1,6 +1,6 @@
 // App.jsx
 import React, { useContext, useEffect } from "react"; // ✅ import useEffect
-import { Route, Routes, Navigate } from "react-router-dom";
+import { Route, Routes, Navigate, useLocation } from "react-router-dom";
 
 import Registration from "./Pages/registration";
 import Otp from "./Pages/otp";
@@ -8,20 +8,24 @@ import Login from "./Pages/login";
 import PublicRoute from "./Routes/publicRoute";
 import ProtectedRoute from "./Routes/protectedRoute";
 
-import Unauthorized from "./Pages/Unauthorized";
-import Navbar from "./Pages/Navbar";
+import Unauthorized from "./Pages/unauthorized";
+import Navbar from "./Pages/navbar";
 import Home from "./Pages/Home";
 import AllManga from "./Pages/AllManga";
 import UploadManga from "./Pages/uploadManga";
 import UserManga from "./Pages/userManga";
 import Details from "./Pages/Details";
 import Profile from "./Pages/Profile";
+// New pages (added safely)
+import Feed from "./Pages/Feed";
+import UserProfile from "./Pages/UserProfile";
 import "slick-carousel/slick/slick.css";
 import "slick-carousel/slick/slick-theme.css";
 
 import UserProvider, { UserContext } from "./Context/UserContext";
 
 function App() {
+  const location = useLocation();
   useEffect(() => {
     const stored = localStorage.getItem("theme");
     const initial = stored || "dark"; // default = dark
@@ -32,7 +36,7 @@ function App() {
       document.documentElement.classList.remove("dark");
       localStorage.setItem("theme", "light");
     }
-  }, []);
+  }, [location.pathname]);
 
   return (
     <UserProvider>
@@ -124,6 +128,23 @@ function AppRoutes() {
         element={
           <ProtectedRoute role={["user", "admin"]}>
             <Details />
+          </ProtectedRoute>
+        }
+      />
+      {/* New routes: do not affect existing ones */}
+      <Route
+        path="/feed"
+        element={
+          <ProtectedRoute role={["user", "admin"]}>
+            <Feed />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/user/:id"
+        element={
+          <ProtectedRoute role={["user", "admin"]}>
+            <UserProfile />
           </ProtectedRoute>
         }
       />
