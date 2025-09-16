@@ -34,7 +34,7 @@
 # Prerequisites
 * Node.js and npm installed
 * MongoDB running locally (or update .env with your remote URI)
-
+* Update the .env file with your MongoDB connection string.
 
 # Backend Setup
 * Navigate to the server folder:
@@ -72,3 +72,4 @@ npm run dev
 ```
 
 * The frontend runs on http://localhost:5173.
+* Backend API: http://localhost:8000
