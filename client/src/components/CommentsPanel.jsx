@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState } from "react";
+import { useToast } from "@/Context/ToastContext";
 import { Link } from 'react-router-dom';
 import { getCommentsApi, addCommentApi, reactCommentApi, editCommentApi } from "@/Api/mangaApi";
 const IMAGE_BASE = import.meta.env.VITE_API_URL?.replace(/\/+$/, "") || "http://localhost:8000";
@@ -318,6 +319,7 @@ const CommentsPanel = ({ mangaId, currentUserId: propUserId }) => {
   const [err, setErr] = useState("");
   const [draft, setDraft] = useState("");
   const [posting, setPosting] = useState(false);
+  const toast = useToast();
 
   const localUserId = getUserId();
   const currentUserId = propUserId || localUserId;
@@ -390,7 +392,15 @@ const CommentsPanel = ({ mangaId, currentUserId: propUserId }) => {
     setDraft("");
 
     try {
-      await addCommentApi(mangaId, text, currentUserId);
+      const { data } = await addCommentApi(mangaId, text, currentUserId);
+      const xp = data?.xp;
+      if (xp && xp.awarded) {
+        const msg = xp.leveledUp
+          ? `+${xp.awarded} XP for commenting. Level up to ${xp.level}!`
+          : `+${xp.awarded} XP for commenting.`;
+        toast.success(msg);
+        window.dispatchEvent(new Event('user:xp-updated'));
+      }
       await load(1);
     } catch (e) {
       console.error(e);

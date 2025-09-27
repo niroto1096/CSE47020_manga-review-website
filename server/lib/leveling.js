@@ -8,6 +8,7 @@ const XP_PER_REVIEW = 50; // first review on a manga
 const XP_PER_COMMENT = 10; // per comment
 const XP_PER_REVIEW_LIKE_RECEIVED = 5; // when someone likes your review
 const XP_PER_FOLLOW_GAINED = 20; // when someone follows you
+const DAILY_XP_CAP = 200; // max xp per user per day
 const BASE_THRESHOLD = 100; // xp needed for level 1 -> 2
 
 function getLevelThreshold(level) {
@@ -16,9 +17,22 @@ function getLevelThreshold(level) {
 }
 
 function addXp(user, xpToAdd) {
-  if (!user) return { leveledUp: false, newLevel: 0, newXp: 0 };
-  user.xp = (user.xp || 0) + xpToAdd;
-  user.totalXp = (user.totalXp || 0) + xpToAdd;
+  if (!user) return { awarded: 0, capped: false, leveledUp: false, newLevel: 0, newXp: 0 };
+
+  // daily cap handling (UTC-based day)
+  const now = new Date();
+  const dayKey = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate());
+  if (!user.xpDayDate || new Date(user.xpDayDate).getTime() !== dayKey) {
+    user.xpDayDate = new Date(dayKey);
+    user.xpDay = 0;
+  }
+  const remaining = Math.max(0, DAILY_XP_CAP - (user.xpDay || 0));
+  const grant = Math.max(0, Math.min(remaining, xpToAdd));
+  const capped = grant < xpToAdd;
+
+  user.xp = (user.xp || 0) + grant;
+  user.totalXp = (user.totalXp || 0) + grant;
+  user.xpDay = (user.xpDay || 0) + grant;
   let leveledUp = false;
   // handle multi-level ups if XP is large
   while ((user.xp || 0) >= getLevelThreshold(user.level || 1)) {
@@ -26,7 +40,7 @@ function addXp(user, xpToAdd) {
     user.level = (user.level || 1) + 1;
     leveledUp = true;
   }
-  return { leveledUp, newLevel: user.level, newXp: user.xp };
+  return { awarded: grant, capped, leveledUp, newLevel: user.level, newXp: user.xp };
 }
 
 module.exports = {
@@ -34,6 +48,7 @@ module.exports = {
   XP_PER_COMMENT,
   XP_PER_REVIEW_LIKE_RECEIVED,
   XP_PER_FOLLOW_GAINED,
+  DAILY_XP_CAP,
   getLevelThreshold,
   addXp,
 };

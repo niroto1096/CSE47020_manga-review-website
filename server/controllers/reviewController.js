@@ -73,6 +73,7 @@ const reviewSchema = Joi.object({
 });
 
 const { addXp, XP_PER_REVIEW } = require("../lib/leveling");
+const Activity = require("../models/activityModel");
 
 // Create or update a review
 exports.createOrUpdateReview = async (req, res) => {
@@ -115,9 +116,20 @@ exports.createOrUpdateReview = async (req, res) => {
       const user = await userModel.findById(finalUserId).select("level xp totalReviews name email avatar");
       if (user) {
         user.totalReviews = (user.totalReviews || 0) + 1;
-        const { leveledUp, newLevel, newXp } = addXp(user, XP_PER_REVIEW);
+        const xpRes = addXp(user, XP_PER_REVIEW);
         await user.save();
-        req._xpResult = { awarded: XP_PER_REVIEW, leveledUp, level: newLevel, xp: newXp };
+        // Activity: review_created
+        try {
+          await Activity.create({
+            user: user._id,
+            type: 'review_created',
+            meta: { mangaId, mangaTitle: req.body?.mangaTitle || manga?.title },
+          });
+          if (xpRes.leveledUp) {
+            await Activity.create({ user: user._id, type: 'level_up', meta: { level: xpRes.newLevel } });
+          }
+        } catch (e) { console.error('activity log (review) failed', e.message); }
+        req._xpResult = { awarded: xpRes.awarded, capped: xpRes.capped, leveledUp: xpRes.leveledUp, level: xpRes.newLevel, xp: xpRes.newXp };
       }
     }
 
@@ -377,8 +389,9 @@ exports.toggleReviewReaction = async (req, res) => {
         if (author) {
           const { addXp, XP_PER_REVIEW_LIKE_RECEIVED } = require("../lib/leveling");
           author.totalReviewLikesReceived = (author.totalReviewLikesReceived || 0) + 1;
-          addXp(author, XP_PER_REVIEW_LIKE_RECEIVED);
+          const xpRes = addXp(author, XP_PER_REVIEW_LIKE_RECEIVED);
           await author.save();
+          try { const Activity = require("../models/activityModel"); await Activity.create({ user: author._id, type: 'review_liked', meta: { reviewId: doc._id, mangaId: doc.manga?._id || doc.manga } }); if (xpRes.leveledUp) await Activity.create({ user: author._id, type: 'level_up', meta: { level: xpRes.newLevel } }); } catch (e) {}
         }
       } catch (xpErr) {
         console.error("like xp award failed:", xpErr.message);

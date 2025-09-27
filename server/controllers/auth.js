@@ -280,6 +280,7 @@ exports.getUserFavoritesPublic = async (req, res) => {
 };
 
 const { addXp, XP_PER_FOLLOW_GAINED } = require("../lib/leveling");
+const Activity = require("../models/activityModel");
 
 // Follow another user
 exports.followUser = async (req, res) => {
@@ -306,7 +307,9 @@ exports.followUser = async (req, res) => {
     await me.save();
     if (newFollowerAdded) {
       try {
-        addXp(target, XP_PER_FOLLOW_GAINED);
+        const xpRes = addXp(target, XP_PER_FOLLOW_GAINED);
+        try { await Activity.create({ user: target._id, type: 'follow_gained', meta: { from: userId } }); } catch (e) {}
+        if (xpRes.leveledUp) { try { await Activity.create({ user: target._id, type: 'level_up', meta: { level: xpRes.newLevel } }); } catch (e) {} }
       } catch {}
     }
     await target.save();

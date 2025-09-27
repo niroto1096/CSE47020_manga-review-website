@@ -13,6 +13,9 @@ const userSchema = new mongoose.Schema({
   totalReviews: { type: Number, default: 0 },
   totalComments: { type: Number, default: 0 },
   totalReviewLikesReceived: { type: Number, default: 0 },
+  // daily xp cap tracking
+  xpDay: { type: Number, default: 0 },
+  xpDayDate: { type: Date },
   // privacy settings for profile sections
   personalListPrivacy: { type: String, enum: ['public', 'private'], default: 'private' },
   reviewedPrivacy: { type: String, enum: ['public', 'private'], default: 'private' },

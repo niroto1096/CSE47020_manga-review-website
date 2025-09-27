@@ -3,6 +3,7 @@ const Joi = require("joi");
 const Comment = require("../models/commentsModel"); // your schema file above
 const Manga = require("../models/mangaModel"); // assume you have a Manga model
 const userModel = require("../models/userModel");
+const Activity = require("../models/activityModel");
 const { addXp, XP_PER_COMMENT } = require("../lib/leveling");
 
 // Validate request body
@@ -42,13 +43,19 @@ exports.addComment = async (req, res) => {
       comment,
     });
 
+    let xpResult = null;
     // Award XP for commenting
     try {
       const user = await userModel.findById(finalUserId).select("level xp totalXp totalComments");
       if (user) {
         user.totalComments = (user.totalComments || 0) + 1;
-        addXp(user, XP_PER_COMMENT);
+        const xpRes = addXp(user, XP_PER_COMMENT);
+        xpResult = { awarded: xpRes.awarded, capped: xpRes.capped, leveledUp: xpRes.leveledUp, level: xpRes.newLevel, xp: xpRes.newXp };
         await user.save();
+        try {
+          await Activity.create({ user: user._id, type: 'comment_added', meta: { mangaId } });
+          if (xpRes.leveledUp) await Activity.create({ user: user._id, type: 'level_up', meta: { level: xpRes.newLevel } });
+        } catch (e) { console.error('activity log (comment) failed', e.message); }
       }
     } catch (xpErr) {
       console.error("comment xp award failed:", xpErr.message);
@@ -63,6 +70,7 @@ exports.addComment = async (req, res) => {
     return res.status(201).json({
       message: "Comment added",
       comment: populated,
+      xp: xpResult
     });
   } catch (err) {
     if (err.isJoi) {
