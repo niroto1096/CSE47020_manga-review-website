@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { getAllManga, getMyPersonalList, getUserReviewApi, getReviewSummaryApi } from "@/Api/mangaApi";
-import { uploadAvatar, verifyUser as verifyUserApi, getPublicUserApi, updatePrivacyApi } from "@/Api/authApi";
+import { uploadAvatar, verifyUser as verifyUserApi, getPublicUserApi, updatePrivacyApi, deleteUserProfileApi } from "@/Api/authApi";
 
 const IMAGE_BASE =
   import.meta.env.VITE_API_URL?.replace(/\/+$/, "") || "http://localhost:8000";
@@ -29,6 +29,10 @@ const Profile = () => {
   const [followingList, setFollowingList] = useState([]);
   const [showFollowing, setShowFollowing] = useState(false);
   const fileRef = useRef();
+  // gamification
+  const [level, setLevel] = useState(1);
+  const [xp, setXp] = useState(0);
+  const [stats, setStats] = useState({ totalReviews: 0, totalComments: 0, totalReviewLikesReceived: 0 });
   // privacy states (default private until verified fetch)
   const [privacy, setPrivacy] = useState({ personalList: 'private', reviewed: 'private', favorites: 'private' });
 
@@ -66,6 +70,13 @@ const Profile = () => {
           const v = await verifyUserApi();
           const u = v?.data?.user;
           if (u?.avatar) setAvatar(u.avatar);
+          if (typeof u?.level === 'number') setLevel(u.level || 1);
+          if (typeof u?.xp === 'number') setXp(u.xp || 0);
+          setStats({
+            totalReviews: Number(u?.totalReviews || 0),
+            totalComments: Number(u?.totalComments || 0),
+            totalReviewLikesReceived: Number(u?.totalReviewLikesReceived || 0)
+          });
           if (u) {
             setPrivacy({
               personalList: u.personalListPrivacy || 'private',
@@ -200,6 +211,27 @@ const Profile = () => {
     })();
   }, [userId]);
 
+  // listen for xp updates fired from review submit, then refresh user
+  useEffect(() => {
+    const onXpUpdated = async () => {
+      try {
+        const v = await verifyUserApi();
+        const u = v?.data?.user;
+        if (u) {
+          setLevel(typeof u.level === 'number' ? u.level : 1);
+          setXp(typeof u.xp === 'number' ? u.xp : 0);
+          setStats({
+            totalReviews: Number(u?.totalReviews || 0),
+            totalComments: Number(u?.totalComments || 0),
+            totalReviewLikesReceived: Number(u?.totalReviewLikesReceived || 0)
+          });
+        }
+      } catch {}
+    };
+    window.addEventListener('user:xp-updated', onXpUpdated);
+    return () => window.removeEventListener('user:xp-updated', onXpUpdated);
+  }, []);
+
   // react to follow/unfollow events to refresh counters
   useEffect(() => {
     const onSocial = async () => {
@@ -262,6 +294,37 @@ const Profile = () => {
       });
     } catch (e) {
       console.error('update privacy failed', e);
+    }
+  };
+
+  const handleDeleteProfile = async () => {
+    const confirmation = window.confirm(
+      "Are you sure you want to delete your profile? This action cannot be undone and will remove all your reviews, ratings, comments, and personal lists."
+    );
+    
+    if (!confirmation) return;
+
+    const finalConfirmation = window.confirm(
+      "This is your final warning. All your data will be permanently deleted. Are you absolutely sure?"
+    );
+
+    if (!finalConfirmation) return;
+
+    try {
+      await deleteUserProfileApi();
+      
+      // Clear local storage
+      localStorage.removeItem("userId");
+      localStorage.removeItem("username");
+      localStorage.removeItem("userRole");
+      
+      // Redirect to home page
+      navigate("/");
+      
+      alert("Your profile has been successfully deleted.");
+    } catch (error) {
+      console.error("Delete profile error:", error);
+      alert("Failed to delete profile. Please try again.");
     }
   };
 
@@ -345,6 +408,18 @@ const Profile = () => {
           <p className="text-gray-600 dark:text-gray-400 text-sm">
             Joined: Jan 2025
           </p>
+          {/* Level / XP */}
+          <div className="mt-2">
+            <div className="text-sm font-medium">Level {level}</div>
+            <div className="w-56 h-2 bg-gray-200 dark:bg-gray-700 rounded overflow-hidden mt-1">
+              <div
+                className="h-full bg-blue-600"
+                style={{ width: `${Math.max(0, Math.min(100, (xp / Math.max(1, 100 * level)) * 100))}%` }}
+                title={`XP: ${xp} / ${100 * level}`}
+              />
+            </div>
+            <div className="text-xs text-gray-600 dark:text-gray-400 mt-1">{xp} / {100 * level} XP</div>
+          </div>
           <p className="text-gray-700 dark:text-gray-300 text-sm mt-1">
             <button
               type="button"
@@ -384,6 +459,27 @@ const Profile = () => {
               <span>💖 Favorites:</span>
               <button onClick={() => updatePrivacy('favorites', privacy.favorites === 'public' ? 'private' : 'public')} className={`px-2 py-0.5 rounded ${privacy.favorites==='public'?'bg-green-600 text-white':'bg-gray-300 dark:bg-gray-700'}`}>{privacy.favorites}</button>
             </div>
+          </div>
+
+          {/* Badges */}
+          <div className="mt-3 text-sm flex flex-wrap gap-2">
+            <Badge label="Reviewer I" active={stats.totalReviews >= 1} />
+            <Badge label="Reviewer II" active={stats.totalReviews >= 5} />
+            <Badge label="Commenter I" active={stats.totalComments >= 5} />
+            <Badge label="Loved Reviewer" active={stats.totalReviewLikesReceived >= 10} />
+          </div>
+          
+          {/* Delete Profile Button */}
+          <div className="mt-4">
+            <button 
+              onClick={handleDeleteProfile}
+              className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white text-sm rounded-lg transition-colors duration-200"
+            >
+              🗑️ Delete Profile
+            </button>
+            <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+              This will permanently delete your account and all associated data
+            </p>
           </div>
         </div>
         
@@ -593,3 +689,9 @@ const Profile = () => {
 };
 
 export default Profile;
+
+function Badge({ label, active }) {
+  return (
+    <span className={`px-2 py-0.5 rounded border text-xs ${active ? 'bg-yellow-200 border-yellow-400 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-100 dark:border-yellow-700' : 'bg-gray-200 dark:bg-gray-700 border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300'}`}>{label}</span>
+  );
+}

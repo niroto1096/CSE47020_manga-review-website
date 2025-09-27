@@ -15,6 +15,8 @@ const {
   unfollowUser,
   getFeed,
   getPublicUser,
+  getLeaderboard,
+  deleteUserProfile,
 } = require("../controllers/auth");
 const { getListPublic } = require("../controllers/pListController");
 const { getUserReviewsPublic } = require("../controllers/reviewController");
@@ -45,5 +47,8 @@ router.post('/follow', followUser);
 router.post('/unfollow', unfollowUser);
 router.get('/feed', getFeed);
 router.get('/user/:id', getPublicUser);
+router.get('/leaderboard', getLeaderboard);
+// delete user profile
+router.delete('/delete-profile', deleteUserProfile);
 
 module.exports = router;

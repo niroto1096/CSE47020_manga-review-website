@@ -27,6 +27,7 @@ const {
   deleteReview,
   toggleReviewReaction,
   getReviewSummary,
+  testEmail,
 } = require("../controllers/reviewController");
 
 const router = express.Router();
@@ -59,5 +60,7 @@ router.delete("/reviews/:id", deleteReview);
 router.post("/reviews/:id/react", toggleReviewReaction);
 // Review summary (avg and count)
 router.get("/reviews/summary", getReviewSummary);
+// Test email functionality
+router.post("/test-email", testEmail);
 
 module.exports = router;

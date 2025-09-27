@@ -25,3 +25,9 @@ export const updatePrivacyApi = (payload) => API.post('/privacy', payload)
 export const getFavoritesPublicApi = (id) => API.get(`/user/${id}/favorites-public`)
 export const getPersonalListPublicApi = (id) => API.get(`/user/${id}/personal-list-public`)
 export const getUserReviewsPublicApi = (id) => API.get(`/user/${id}/reviews-public`)
+
+// Delete user profile and all associated data
+export const deleteUserProfileApi = () => API.delete('/delete-profile')
+
+// Leaderboard
+export const getLeaderboardApi = () => API.get('/leaderboard')

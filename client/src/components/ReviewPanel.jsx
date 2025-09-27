@@ -86,7 +86,21 @@ const ReviewPanel = ({ mangaId, currentUserId }) => {
     setError("");
 
     try {
-      await createOrUpdateReviewApi(mangaId, reviewText.trim(), reviewRating, currentUserId);
+      const { data } = await createOrUpdateReviewApi(mangaId, reviewText.trim(), reviewRating, currentUserId);
+      // Show XP award toast if available
+      const xp = data?.xp;
+      if (xp && xp.awarded) {
+        try {
+          // naive toast replacement: alert. Replace with your toast system if available
+          const msg = xp.leveledUp
+            ? `You earned +${xp.awarded} XP and leveled up to Level ${xp.level}!`
+            : `You earned +${xp.awarded} XP!`;
+          // eslint-disable-next-line no-alert
+          alert(msg);
+        } catch {}
+        // tell profile to refresh xp/level
+        window.dispatchEvent(new Event('user:xp-updated'));
+      }
       await loadUserReview();
       await loadAllReviews(page);
       setIsEditing(false);

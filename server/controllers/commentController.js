@@ -2,6 +2,8 @@ const mongoose = require("mongoose"); // <-- add this
 const Joi = require("joi");
 const Comment = require("../models/commentsModel"); // your schema file above
 const Manga = require("../models/mangaModel"); // assume you have a Manga model
+const userModel = require("../models/userModel");
+const { addXp, XP_PER_COMMENT } = require("../lib/leveling");
 
 // Validate request body
 const addCommentSchema = Joi.object({
@@ -39,6 +41,18 @@ exports.addComment = async (req, res) => {
       manga: mangaId,
       comment,
     });
+
+    // Award XP for commenting
+    try {
+      const user = await userModel.findById(finalUserId).select("level xp totalXp totalComments");
+      if (user) {
+        user.totalComments = (user.totalComments || 0) + 1;
+        addXp(user, XP_PER_COMMENT);
+        await user.save();
+      }
+    } catch (xpErr) {
+      console.error("comment xp award failed:", xpErr.message);
+    }
 
     // Populate user fields you want to expose (e.g., name, avatar)
     const populated = await Comment.findById(doc._id).populate({

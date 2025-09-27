@@ -279,6 +279,8 @@ exports.getUserFavoritesPublic = async (req, res) => {
   }
 };
 
+const { addXp, XP_PER_FOLLOW_GAINED } = require("../lib/leveling");
+
 // Follow another user
 exports.followUser = async (req, res) => {
   try {
@@ -296,8 +298,17 @@ exports.followUser = async (req, res) => {
     me.following = me.following || [];
     target.followers = target.followers || [];
     if (!me.following.map(String).includes(String(targetUserId))) me.following.push(targetUserId);
-    if (!target.followers.map(String).includes(String(userId))) target.followers.push(userId);
+    let newFollowerAdded = false;
+    if (!target.followers.map(String).includes(String(userId))) {
+      target.followers.push(userId);
+      newFollowerAdded = true;
+    }
     await me.save();
+    if (newFollowerAdded) {
+      try {
+        addXp(target, XP_PER_FOLLOW_GAINED);
+      } catch {}
+    }
     await target.save();
     return res.status(200).json({ message: 'Followed', following: me.following });
   } catch (err) {
@@ -325,6 +336,22 @@ exports.unfollowUser = async (req, res) => {
     return res.status(200).json({ message: 'Unfollowed', following: me.following });
   } catch (err) {
     console.error('unfollowUser error', err.message);
+    return res.status(500).json({ message: 'Internal Server Error' });
+  }
+};
+
+// Leaderboard: top users by level then totalXp
+exports.getLeaderboard = async (req, res) => {
+  try {
+    const users = await userModel
+      .find({})
+      .select('name avatar level xp totalXp totalReviews totalComments totalReviewLikesReceived')
+      .sort({ level: -1, totalXp: -1 })
+      .limit(50)
+      .lean();
+    return res.status(200).json({ users });
+  } catch (err) {
+    console.error('getLeaderboard error', err.message);
     return res.status(500).json({ message: 'Internal Server Error' });
   }
 };
@@ -375,6 +402,85 @@ exports.getFeed = async (req, res) => {
     return res.status(200).json({ feed });
   } catch (err) {
     console.error('getFeed error', err.message);
+    return res.status(500).json({ message: 'Internal Server Error' });
+  }
+};
+
+// Delete user profile and all associated data
+exports.deleteUserProfile = async (req, res) => {
+  try {
+    const token = req.cookies.token;
+    if (!token) return res.status(401).json({ message: 'Unauthorized' });
+    
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    const userId = decoded.id;
+
+    // Import required models
+    const Comment = require('../models/commentsModel');
+    const PersonalList = require('../models/personalListModel');
+    const Rating = require('../models/ratingModel');
+
+    // Delete all user's reviews
+    await Review.deleteMany({ user: userId });
+
+    // Delete all user's comments
+    await Comment.deleteMany({ user: userId });
+
+    // Delete all user's ratings
+    await Rating.deleteMany({ user: userId });
+
+    // Delete all user's personal list entries
+    await PersonalList.deleteMany({ user: userId });
+
+    // Remove user from other users' following/followers lists
+    await userModel.updateMany(
+      { following: userId },
+      { $pull: { following: userId } }
+    );
+    await userModel.updateMany(
+      { followers: userId },
+      { $pull: { followers: userId } }
+    );
+
+    // Remove user from manga raters list and favorites
+    const Manga = require('../models/mangaModel');
+    await Manga.updateMany(
+      { raters: userId },
+      { $pull: { raters: userId } }
+    );
+    await userModel.updateMany(
+      { favorites: { $exists: true } },
+      { $pull: { favorites: userId } }
+    );
+
+    // Remove user from review likes/dislikes
+    await Review.updateMany(
+      { $or: [{ likes: userId }, { dislikes: userId }] },
+      { $pull: { likes: userId, dislikes: userId } }
+    );
+
+    // Remove user from comment likes/dislikes
+    await Comment.updateMany(
+      { $or: [{ likes: userId }, { dislikes: userId }] },
+      { $pull: { likes: userId, dislikes: userId } }
+    );
+
+    // Finally, delete the user profile
+    await userModel.findByIdAndDelete(userId);
+
+    // Clear the authentication cookie
+    res.clearCookie('token', {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'None'
+    });
+
+    return res.status(200).json({ 
+      message: 'User profile and all associated data deleted successfully' 
+    });
+
+  } catch (err) {
+    console.error('deleteUserProfile error:', err);
     return res.status(500).json({ message: 'Internal Server Error' });
   }
 };

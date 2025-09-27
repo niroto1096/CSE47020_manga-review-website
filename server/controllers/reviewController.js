@@ -3,6 +3,66 @@ const Joi = require("joi");
 const Review = require("../models/reviewModel");
 const Manga = require("../models/mangaModel");
 const userModel = require("../models/userModel");
+const nodemailer = require("nodemailer");
+
+// Email notification utility function
+const sendLikeNotificationEmail = async (reviewAuthor, likerName, mangaTitle) => {
+  try {
+    console.log("sendLikeNotificationEmail called with:", {
+      reviewAuthorEmail: reviewAuthor?.email,
+      likerName,
+      mangaTitle
+    });
+    
+    if (!reviewAuthor.email) {
+      console.log("No email address for review author, skipping notification");
+      return;
+    }
+
+    console.log("Creating email transporter...");
+    const transporter = nodemailer.createTransporter({
+      service: "gmail",
+      auth: {
+        user: process.env.EMAIL_USER || "konodiosama69@gmail.com",
+        pass: process.env.EMAIL_PASS || "fekm kopo koua kmuv",
+      },
+      tls: {
+        rejectUnauthorized: false
+      }
+    });
+
+    const mailOptions = {
+      from: '"Manga Review Website" konodiosama69@gmail.com',
+      to: reviewAuthor.email,
+      subject: `${likerName} liked your review!`,
+      html: `
+        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+          <h2 style="color: #333;">Great news!</h2>
+          <p>Hello <strong>${reviewAuthor.name}</strong>,</p>
+          <p><strong>${likerName}</strong> liked your review for <strong>"${mangaTitle}"</strong>!</p>
+          <p>Your thoughtful review is getting recognition from the community. Keep sharing your manga insights!</p>
+          <div style="margin: 20px 0; padding: 15px; background-color: #f8f9fa; border-radius: 8px;">
+            <p style="margin: 0; color: #666;">
+              Visit our website to see more interactions with your reviews and discover new manga!
+            </p>
+          </div>
+          <p style="color: #888; font-size: 12px;">
+            This notification was sent because someone liked your review. 
+            You can manage your notification preferences in your profile settings.
+          </p>
+        </div>
+      `,
+    };
+
+    console.log("Sending email...");
+    await transporter.sendMail(mailOptions);
+    console.log(`Like notification email sent successfully to ${reviewAuthor.email}`);
+  } catch (error) {
+    console.error("Error sending like notification email:", error);
+    console.error("Full error details:", error.message);
+    // Don't throw error to avoid disrupting the main flow
+  }
+};
 
 // Validate request body for creating/updating reviews
 const reviewSchema = Joi.object({
@@ -11,6 +71,8 @@ const reviewSchema = Joi.object({
   rating: Joi.number().integer().min(1).max(5).required(),
   userId: Joi.string().optional(),
 });
+
+const { addXp, XP_PER_REVIEW } = require("../lib/leveling");
 
 // Create or update a review
 exports.createOrUpdateReview = async (req, res) => {
@@ -34,6 +96,9 @@ exports.createOrUpdateReview = async (req, res) => {
       return res.status(404).json({ message: "Manga not found" });
     }
 
+    // Determine if a review already exists (to award XP only on first creation)
+    let existing = await Review.findOne({ user: finalUserId, manga: mangaId }).select("_id");
+
     // Use upsert to create or update the review
     const reviewDoc = await Review.findOneAndUpdate(
       { user: finalUserId, manga: mangaId },
@@ -45,6 +110,17 @@ exports.createOrUpdateReview = async (req, res) => {
       }
     );
 
+    // If this was a newly created review, award XP and increment totalReviews
+    if (!existing) {
+      const user = await userModel.findById(finalUserId).select("level xp totalReviews name email avatar");
+      if (user) {
+        user.totalReviews = (user.totalReviews || 0) + 1;
+        const { leveledUp, newLevel, newXp } = addXp(user, XP_PER_REVIEW);
+        await user.save();
+        req._xpResult = { awarded: XP_PER_REVIEW, leveledUp, level: newLevel, xp: newXp };
+      }
+    }
+
     // Populate user fields
     const populated = await Review.findById(reviewDoc._id).populate({
       path: "user",
@@ -52,8 +128,9 @@ exports.createOrUpdateReview = async (req, res) => {
     });
 
     return res.status(201).json({
-      message: "Review saved successfully",
+      message: existing ? "Review updated successfully" : "Review created successfully",
       review: populated,
+      xp: req._xpResult || null,
     });
   } catch (err) {
     if (err.isJoi) {
@@ -239,8 +316,15 @@ exports.toggleReviewReaction = async (req, res) => {
       return res.status(400).json({ message: "Invalid reaction type" });
     }
 
-    const doc = await Review.findById(reviewId);
+    const doc = await Review.findById(reviewId).populate([
+      { path: "user", select: "name email" },
+      { path: "manga", select: "title" }
+    ]);
     if (!doc) return res.status(404).json({ message: "Review not found" });
+
+    // Check if this is a new like (not previously liked)
+    const wasAlreadyLiked = doc.likes && doc.likes.some(u => String(u) === String(userId));
+    const isNewLike = reaction === "like" && !wasAlreadyLiked;
 
     // Remove from both first
     doc.likes = (doc.likes || []).filter((u) => String(u) !== String(userId));
@@ -250,6 +334,56 @@ exports.toggleReviewReaction = async (req, res) => {
     if (reaction === "dislike") doc.dislikes.push(userId);
 
     await doc.save();
+
+    // Send email notification for new likes (but not to self)
+    console.log("Email notification check:", {
+      isNewLike,
+      reviewAuthorId: String(doc.user._id),
+      likerId: String(userId),
+      isDifferentUser: String(doc.user._id) !== String(userId)
+    });
+    
+    if (isNewLike && String(doc.user._id) !== String(userId)) {
+      console.log("Attempting to send email notification...");
+      try {
+        const liker = await userModel.findById(userId).select("name");
+        console.log("Liker found:", liker?.name);
+        console.log("Review author email:", doc.user?.email);
+        console.log("Manga title:", doc.manga?.title);
+        
+        if (liker && doc.user && doc.manga) {
+          console.log("All data available, sending email...");
+          // Send email notification in background (don't wait for it)
+          sendLikeNotificationEmail(doc.user, liker.name, doc.manga.title).catch(err => {
+            console.error("Background email sending failed:", err);
+          });
+        } else {
+          console.log("Missing data for email:", {
+            hasLiker: !!liker,
+            hasUser: !!doc.user,
+            hasManga: !!doc.manga
+          });
+        }
+      } catch (emailError) {
+        console.error("Error getting liker info for email:", emailError);
+        // Continue with response even if email fails
+      }
+    }
+
+    // Award XP to review author when they receive a new like
+    if (isNewLike && String(doc.user._id) !== String(userId)) {
+      try {
+        const author = await userModel.findById(doc.user._id).select("level xp totalXp totalReviewLikesReceived");
+        if (author) {
+          const { addXp, XP_PER_REVIEW_LIKE_RECEIVED } = require("../lib/leveling");
+          author.totalReviewLikesReceived = (author.totalReviewLikesReceived || 0) + 1;
+          addXp(author, XP_PER_REVIEW_LIKE_RECEIVED);
+          await author.save();
+        }
+      } catch (xpErr) {
+        console.error("like xp award failed:", xpErr.message);
+      }
+    }
 
     const populated = await Review.findById(doc._id).populate({
       path: "user",
@@ -265,6 +399,24 @@ exports.toggleReviewReaction = async (req, res) => {
   } catch (err) {
     console.error("toggleReviewReaction error:", err);
     res.status(500).json({ message: "Internal server error" });
+  }
+};
+
+// Test email functionality
+exports.testEmail = async (req, res) => {
+  try {
+    const { email } = req.body;
+    if (!email) {
+      return res.status(400).json({ message: "Email is required" });
+    }
+
+    const testUser = { name: "Test User", email: email };
+    await sendLikeNotificationEmail(testUser, "Test Liker", "Test Manga");
+    
+    res.json({ message: "Test email sent successfully" });
+  } catch (error) {
+    console.error("Test email error:", error);
+    res.status(500).json({ message: "Failed to send test email", error: error.message });
   }
 };
 

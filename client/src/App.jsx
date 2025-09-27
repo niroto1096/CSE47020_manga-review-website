@@ -19,6 +19,7 @@ import Profile from "./Pages/Profile";
 // New pages (added safely)
 import Feed from "./Pages/Feed";
 import UserProfile from "./Pages/UserProfile";
+import Leaderboard from "./Pages/Leaderboard";
 import "slick-carousel/slick/slick.css";
 import "slick-carousel/slick/slick-theme.css";
 
@@ -145,6 +146,14 @@ function AppRoutes() {
         element={
           <ProtectedRoute role={["user", "admin"]}>
             <UserProfile />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/leaderboard"
+        element={
+          <ProtectedRoute role={["user", "admin"]}>
+            <Leaderboard />
           </ProtectedRoute>
         }
       />
