@@ -463,10 +463,10 @@ const Profile = () => {
 
           {/* Badges */}
           <div className="mt-3 text-sm flex flex-wrap gap-2">
-            <Badge label="Reviewer I" active={stats.totalReviews >= 1} />
-            <Badge label="Reviewer II" active={stats.totalReviews >= 5} />
-            <Badge label="Commenter I" active={stats.totalComments >= 5} />
-            <Badge label="Loved Reviewer" active={stats.totalReviewLikesReceived >= 10} />
+            <Badge label="Reviewer I" active={stats.totalReviews >= 1} hint={`Write 1+ reviews (${stats.totalReviews}/1)`} />
+            <Badge label="Reviewer II" active={stats.totalReviews >= 5} hint={`Write 5+ reviews (${stats.totalReviews}/5)`} />
+            <Badge label="Commenter I" active={stats.totalComments >= 5} hint={`Post 5+ comments (${stats.totalComments}/5)`} />
+            <Badge label="Loved Reviewer" active={stats.totalReviewLikesReceived >= 10} hint={`Get 10+ likes on reviews (${stats.totalReviewLikesReceived}/10)`} />
           </div>
           
           {/* Delete Profile Button */}
@@ -690,8 +690,8 @@ const Profile = () => {
 
 export default Profile;
 
-function Badge({ label, active }) {
+function Badge({ label, active, hint }) {
   return (
-    <span className={`px-2 py-0.5 rounded border text-xs ${active ? 'bg-yellow-200 border-yellow-400 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-100 dark:border-yellow-700' : 'bg-gray-200 dark:bg-gray-700 border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300'}`}>{label}</span>
+    <span title={hint} className={`px-2 py-0.5 rounded border text-xs ${active ? 'bg-yellow-200 border-yellow-400 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-100 dark:border-yellow-700' : 'bg-gray-200 dark:bg-gray-700 border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300'}`}>{label}</span>
   );
 }

@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from "react";
+import { useToast } from "@/Context/ToastContext";
 import { Link } from 'react-router-dom';
 const IMAGE_BASE = import.meta.env.VITE_API_URL?.replace(/\/+$/, "") || "http://localhost:8000";
 import { 
@@ -21,6 +22,7 @@ const ReviewPanel = ({ mangaId, currentUserId }) => {
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const [err, setErr] = useState("");
+  const toast = useToast();
 
   const loadUserReview = async () => {
     if (!currentUserId) return;
@@ -90,14 +92,10 @@ const ReviewPanel = ({ mangaId, currentUserId }) => {
       // Show XP award toast if available
       const xp = data?.xp;
       if (xp && xp.awarded) {
-        try {
-          // naive toast replacement: alert. Replace with your toast system if available
-          const msg = xp.leveledUp
-            ? `You earned +${xp.awarded} XP and leveled up to Level ${xp.level}!`
-            : `You earned +${xp.awarded} XP!`;
-          // eslint-disable-next-line no-alert
-          alert(msg);
-        } catch {}
+        const msg = xp.leveledUp
+          ? `You earned +${xp.awarded} XP and leveled up to Level ${xp.level}!`
+          : `You earned +${xp.awarded} XP!`;
+        toast.success(msg);
         // tell profile to refresh xp/level
         window.dispatchEvent(new Event('user:xp-updated'));
       }
