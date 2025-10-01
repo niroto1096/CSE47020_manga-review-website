@@ -99,6 +99,9 @@ const ReviewPanel = ({ mangaId, currentUserId }) => {
         // tell profile to refresh xp/level
         window.dispatchEvent(new Event('user:xp-updated'));
       }
+      if (xp && xp.capped) {
+        toast.warn("Daily XP limit reached! Come back tomorrow for more XP.");
+      }
       await loadUserReview();
       await loadAllReviews(page);
       setIsEditing(false);

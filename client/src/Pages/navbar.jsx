@@ -116,6 +116,12 @@ const Navbar = () => {
               >
                 Leaderboard
               </Link>
+              <Link
+                to="/badges"
+                className="text-white hover:text-blue-600 font-medium dark:text-gray-200 dark:hover:text-blue-400"
+              >
+                Badges
+              </Link>
               <button onClick={handleSurprise} className="text-white hover:text-blue-600 font-medium dark:text-gray-200 dark:hover:text-blue-400">🎲 Surprise Me!</button>
               <Link to="/profile" className="flex items-center gap-2">
                 {avatar && (

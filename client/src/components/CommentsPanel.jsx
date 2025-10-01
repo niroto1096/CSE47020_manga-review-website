@@ -401,6 +401,12 @@ const CommentsPanel = ({ mangaId, currentUserId: propUserId }) => {
         toast.success(msg);
         window.dispatchEvent(new Event('user:xp-updated'));
       }
+      if (xp && xp.capped) {
+        toast.warn("Daily XP limit reached! Come back tomorrow for more XP.");
+      }
+      if (xp && xp.limitReached) {
+        toast.warn("Daily comment limit for XP reached! Try again tomorrow.");
+      }
       await load(1);
     } catch (e) {
       console.error(e);

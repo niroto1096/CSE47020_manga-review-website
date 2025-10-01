@@ -5,6 +5,9 @@ const cookieParser = require("cookie-parser");
 const path = require('path')
 const authRoute = require('./routes/userRoute')
 const mangaRoute = require('./routes/mangaRoute')
+const recommendationRoute = require('./routes/recommendationRoute')
+const challengeRoute = require('./routes/challengeRoute')
+const achievementRoute = require('./routes/achievementRoute')
 
 
 require("dotenv").config();
@@ -26,6 +29,9 @@ app.use(
 app.use('/api/auth',authRoute)
 app.use("/uploads", express.static(path.join(__dirname, "uploads")));
 app.use('/api/manga',mangaRoute)
+app.use('/api/recommend',recommendationRoute)
+app.use('/api/challenge',challengeRoute)
+app.use('/api/achievements',achievementRoute)
 
 const PORT = process.env.PORT || 8080;
 app.listen(PORT, () => console.log(`Server running on port ${PORT}`));

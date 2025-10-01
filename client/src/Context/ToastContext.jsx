@@ -23,6 +23,9 @@ export function ToastProvider({ children }) {
     info: (msg, opts) => push('info', msg, opts),
     warn: (msg, opts) => push('warn', msg, opts),
     error: (msg, opts) => push('error', msg, opts),
+    xp: (msg, opts) => push('xp', msg, { timeout: 4000, ...opts }),
+    achievement: (msg, opts) => push('achievement', msg, { timeout: 5000, ...opts }),
+    streak: (msg, opts) => push('streak', msg, { timeout: 4000, ...opts }),
   }), [push]);
 
   return (
@@ -32,16 +35,29 @@ export function ToastProvider({ children }) {
         {toasts.map((t) => (
           <div
             key={t.id}
-            className={`min-w-[220px] max-w-xs px-3 py-2 rounded shadow text-sm border ${
+            className={`min-w-[220px] max-w-xs px-4 py-3 rounded-lg shadow-lg text-sm border transform transition-all duration-300 animate-bounce-in ${
               t.type === 'success' ? 'bg-green-600 text-white border-green-700' :
               t.type === 'info' ? 'bg-blue-600 text-white border-blue-700' :
               t.type === 'warn' ? 'bg-yellow-500 text-black border-yellow-600' :
+              t.type === 'error' ? 'bg-red-600 text-white border-red-700' :
+              t.type === 'xp' ? 'bg-gradient-to-r from-purple-600 to-blue-600 text-white border-purple-700' :
+              t.type === 'achievement' ? 'bg-gradient-to-r from-yellow-500 to-orange-600 text-white border-yellow-600' :
+              t.type === 'streak' ? 'bg-gradient-to-r from-orange-500 to-red-600 text-white border-orange-600' :
               'bg-red-600 text-white border-red-700'
             }`}
             onClick={() => remove(t.id)}
             role="status"
           >
-            {t.message}
+            <div className="flex items-center gap-2">
+              {t.type === 'xp' && <span className="text-lg">⭐</span>}
+              {t.type === 'achievement' && <span className="text-lg">🏆</span>}
+              {t.type === 'streak' && <span className="text-lg">🔥</span>}
+              {t.type === 'success' && <span className="text-lg">✅</span>}
+              {t.type === 'info' && <span className="text-lg">ℹ️</span>}
+              {t.type === 'warn' && <span className="text-lg">⚠️</span>}
+              {t.type === 'error' && <span className="text-lg">❌</span>}
+              <span className="font-medium">{t.message}</span>
+            </div>
           </div>
         ))}
       </div>

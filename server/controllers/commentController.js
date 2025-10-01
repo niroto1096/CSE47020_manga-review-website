@@ -44,18 +44,37 @@ exports.addComment = async (req, res) => {
     });
 
     let xpResult = null;
-    // Award XP for commenting
+    // Award XP for commenting (with daily limits)
     try {
-      const user = await userModel.findById(finalUserId).select("level xp totalXp totalComments");
+      const user = await userModel.findById(finalUserId).select("level xp totalXp totalComments dailyComments xpDayDate");
       if (user) {
-        user.totalComments = (user.totalComments || 0) + 1;
-        const xpRes = addXp(user, XP_PER_COMMENT);
-        xpResult = { awarded: xpRes.awarded, capped: xpRes.capped, leveledUp: xpRes.leveledUp, level: xpRes.newLevel, xp: xpRes.newXp };
-        await user.save();
-        try {
-          await Activity.create({ user: user._id, type: 'comment_added', meta: { mangaId } });
-          if (xpRes.leveledUp) await Activity.create({ user: user._id, type: 'level_up', meta: { level: xpRes.newLevel } });
-        } catch (e) { console.error('activity log (comment) failed', e.message); }
+        // Check daily comment limit
+        const { DAILY_COMMENT_LIMIT } = require("../lib/leveling");
+        const now = new Date();
+        const dayKey = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate());
+        
+        if (!user.xpDayDate || new Date(user.xpDayDate).getTime() !== dayKey) {
+          user.dailyComments = 0;
+        }
+        
+        if ((user.dailyComments || 0) < DAILY_COMMENT_LIMIT) {
+          user.totalComments = (user.totalComments || 0) + 1;
+          user.dailyComments = (user.dailyComments || 0) + 1;
+          const xpRes = addXp(user, XP_PER_COMMENT);
+          xpResult = { awarded: xpRes.awarded, capped: xpRes.capped, leveledUp: xpRes.leveledUp, level: xpRes.newLevel, xp: xpRes.newXp };
+          await user.save();
+          
+          // Check for achievements after commenting
+          const { checkAchievements } = require('./achievementController');
+          checkAchievements(user._id).catch(err => console.error('Achievement check failed:', err));
+          
+          try {
+            await Activity.create({ user: user._id, type: 'comment_added', meta: { mangaId } });
+            if (xpRes.leveledUp) await Activity.create({ user: user._id, type: 'level_up', meta: { level: xpRes.newLevel } });
+          } catch (e) { console.error('activity log (comment) failed', e.message); }
+        } else {
+          xpResult = { awarded: 0, capped: true, limitReached: true, leveledUp: false, level: user.level || 1, xp: user.xp || 0 };
+        }
       }
     } catch (xpErr) {
       console.error("comment xp award failed:", xpErr.message);

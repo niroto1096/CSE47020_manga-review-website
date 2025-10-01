@@ -31,3 +31,6 @@ export const deleteUserProfileApi = () => API.delete('/delete-profile')
 
 // Leaderboard
 export const getLeaderboardApi = () => API.get('/leaderboard')
+
+// Badges
+export const getBadgesApi = () => API.get('/badges')

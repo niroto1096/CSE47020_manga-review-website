@@ -118,6 +118,11 @@ exports.createOrUpdateReview = async (req, res) => {
         user.totalReviews = (user.totalReviews || 0) + 1;
         const xpRes = addXp(user, XP_PER_REVIEW);
         await user.save();
+        
+        // Check for achievements after review
+        const { checkAchievements } = require('./achievementController');
+        checkAchievements(user._id).catch(err => console.error('Achievement check failed:', err));
+        
         // Activity: review_created
         try {
           await Activity.create({
@@ -391,6 +396,11 @@ exports.toggleReviewReaction = async (req, res) => {
           author.totalReviewLikesReceived = (author.totalReviewLikesReceived || 0) + 1;
           const xpRes = addXp(author, XP_PER_REVIEW_LIKE_RECEIVED);
           await author.save();
+          
+          // Check for achievements after receiving likes
+          const { checkAchievements } = require('./achievementController');
+          checkAchievements(author._id).catch(err => console.error('Achievement check failed:', err));
+          
           try { const Activity = require("../models/activityModel"); await Activity.create({ user: author._id, type: 'review_liked', meta: { reviewId: doc._id, mangaId: doc.manga?._id || doc.manga } }); if (xpRes.leveledUp) await Activity.create({ user: author._id, type: 'level_up', meta: { level: xpRes.newLevel } }); } catch (e) {}
         }
       } catch (xpErr) {

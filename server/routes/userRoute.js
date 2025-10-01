@@ -20,6 +20,7 @@ const {
 } = require("../controllers/auth");
 const { getListPublic } = require("../controllers/pListController");
 const { getUserReviewsPublic } = require("../controllers/reviewController");
+const { getUserBadges } = require("../controllers/badgeController");
 const upload = require('../middlewares/multer');
 
 const router = express.Router();
@@ -48,6 +49,8 @@ router.post('/unfollow', unfollowUser);
 router.get('/feed', getFeed);
 router.get('/user/:id', getPublicUser);
 router.get('/leaderboard', getLeaderboard);
+// badges
+router.get('/badges', getUserBadges);
 // delete user profile
 router.delete('/delete-profile', deleteUserProfile);
 

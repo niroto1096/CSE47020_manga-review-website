@@ -20,6 +20,7 @@ import Profile from "./Pages/Profile";
 import Feed from "./Pages/Feed";
 import UserProfile from "./Pages/UserProfile";
 import Leaderboard from "./Pages/Leaderboard";
+import Badges from "./Pages/Badges";
 import "slick-carousel/slick/slick.css";
 import "slick-carousel/slick/slick-theme.css";
 
@@ -154,6 +155,14 @@ function AppRoutes() {
         element={
           <ProtectedRoute role={["user", "admin"]}>
             <Leaderboard />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/badges"
+        element={
+          <ProtectedRoute role={["user", "admin"]}>
+            <Badges />
           </ProtectedRoute>
         }
       />

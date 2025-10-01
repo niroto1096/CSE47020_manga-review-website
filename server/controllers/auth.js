@@ -103,6 +103,35 @@ exports.login = async (req, res) => {
       return res.status(400).json("Invalid credentials!");
     }
 
+    // Update login streak
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    
+    const lastLogin = user.lastLoginDate ? new Date(user.lastLoginDate) : null;
+    let loginStreak = user.loginStreak || 0;
+    
+    if (lastLogin) {
+      const yesterday = new Date(today);
+      yesterday.setDate(yesterday.getDate() - 1);
+      
+      if (lastLogin.getTime() === yesterday.getTime()) {
+        // Consecutive day login
+        loginStreak += 1;
+      } else if (lastLogin.getTime() !== today.getTime()) {
+        // Streak broken (not today or yesterday)
+        loginStreak = 1;
+      }
+      // If last login was today, keep the same streak
+    } else {
+      // First login
+      loginStreak = 1;
+    }
+    
+    // Update user login data
+    await userModel.findByIdAndUpdate(user._id, {
+      lastLoginDate: today,
+      loginStreak: loginStreak
+    });
     
     const token = jwt.sign({ id: user._id, name:user.name, email: user.email,role : user.role }, JWT_SECRET, {
       expiresIn: "7d",
@@ -116,7 +145,11 @@ exports.login = async (req, res) => {
       maxAge: 7 * 24 * 60 * 60 * 1000, 
     });
 
-    res.status(200).json({ message: "Login successful", user });
+    // Check for achievements after login
+    const { checkAchievements } = require('./achievementController');
+    checkAchievements(user._id).catch(err => console.error('Achievement check failed:', err));
+
+    res.status(200).json({ message: "Login successful", user: { ...user.toObject(), loginStreak } });
   } catch (error) {
     console.error("Login error:", error.message);
     res.status(500).json("Internal Server Error");
@@ -141,6 +174,43 @@ exports.verifyUser = async (req, res) => {
     // Return the latest user record from DB to include fields like avatar
     try {
       const fullUser = await userModel.findById(decoded.id).select('-password');
+      
+      // Update activity streak when user is active
+      if (fullUser) {
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        
+        const lastActivity = fullUser.lastActivityDate ? new Date(fullUser.lastActivityDate) : null;
+        let activityStreak = fullUser.activityStreak || 0;
+        
+        if (lastActivity) {
+          const yesterday = new Date(today);
+          yesterday.setDate(yesterday.getDate() - 1);
+          
+          if (lastActivity.getTime() === yesterday.getTime()) {
+            // Consecutive day activity
+            activityStreak += 1;
+          } else if (lastActivity.getTime() !== today.getTime()) {
+            // Streak broken (not today or yesterday)
+            activityStreak = 1;
+          }
+          // If last activity was today, keep the same streak
+        } else {
+          // First activity
+          activityStreak = 1;
+        }
+        
+        // Only update if activity date changed
+        if (!lastActivity || lastActivity.getTime() !== today.getTime()) {
+          await userModel.findByIdAndUpdate(decoded.id, {
+            lastActivityDate: today,
+            activityStreak: activityStreak
+          });
+          fullUser.activityStreak = activityStreak;
+          fullUser.lastActivityDate = today;
+        }
+      }
+      
       return res.status(200).json({ message: "User verified", user: fullUser || decoded });
     } catch (e) {
       return res.status(200).json({ message: "User verified", user: decoded });
@@ -390,17 +460,26 @@ exports.getFeed = async (req, res) => {
       .populate({ path: 'user', select: '_id name avatar' })
       .populate({ path: 'manga' })
       .sort({ createdAt: -1 })
-      .limit(50)
+      .limit(25)
       .lean();
     const ratings = await Rating.find({ user: { $in: following } })
       .populate({ path: 'user', select: '_id name avatar' })
       .populate({ path: 'manga' })
       .sort({ createdAt: -1 })
-      .limit(50)
+      .limit(25)
       .lean();
+    
+    // Get activities from followed users
+    const activities = await Activity.find({ user: { $in: following } })
+      .populate({ path: 'user', select: '_id name avatar' })
+      .sort({ createdAt: -1 })
+      .limit(25)
+      .lean();
+
     const feed = [
       ...reviews.map((r) => ({ type: 'review', ...r })),
       ...ratings.map((r) => ({ type: 'rating', ...r })),
+      ...activities.map((a) => ({ type: 'activity', subType: a.type, ...a })),
     ].sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt)).slice(0, 50);
     return res.status(200).json({ feed });
   } catch (err) {

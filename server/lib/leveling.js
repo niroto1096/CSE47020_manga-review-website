@@ -9,6 +9,8 @@ const XP_PER_COMMENT = 10; // per comment
 const XP_PER_REVIEW_LIKE_RECEIVED = 5; // when someone likes your review
 const XP_PER_FOLLOW_GAINED = 20; // when someone follows you
 const DAILY_XP_CAP = 200; // max xp per user per day
+const DAILY_COMMENT_LIMIT = 15; // max comments per day for XP
+const DAILY_REVIEW_LIMIT = 5; // max reviews per day for XP
 const BASE_THRESHOLD = 100; // xp needed for level 1 -> 2
 
 function getLevelThreshold(level) {
@@ -25,6 +27,8 @@ function addXp(user, xpToAdd) {
   if (!user.xpDayDate || new Date(user.xpDayDate).getTime() !== dayKey) {
     user.xpDayDate = new Date(dayKey);
     user.xpDay = 0;
+    user.dailyComments = 0;
+    user.dailyReviews = 0;
   }
   const remaining = Math.max(0, DAILY_XP_CAP - (user.xpDay || 0));
   const grant = Math.max(0, Math.min(remaining, xpToAdd));
@@ -49,6 +53,8 @@ module.exports = {
   XP_PER_REVIEW_LIKE_RECEIVED,
   XP_PER_FOLLOW_GAINED,
   DAILY_XP_CAP,
+  DAILY_COMMENT_LIMIT,
+  DAILY_REVIEW_LIMIT,
   getLevelThreshold,
   addXp,
 };

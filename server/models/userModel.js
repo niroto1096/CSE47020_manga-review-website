@@ -16,6 +16,13 @@ const userSchema = new mongoose.Schema({
   // daily xp cap tracking
   xpDay: { type: Number, default: 0 },
   xpDayDate: { type: Date },
+  dailyComments: { type: Number, default: 0 },
+  dailyReviews: { type: Number, default: 0 },
+  // streak system
+  loginStreak: { type: Number, default: 0 },
+  lastLoginDate: { type: Date },
+  activityStreak: { type: Number, default: 0 },
+  lastActivityDate: { type: Date },
   // privacy settings for profile sections
   personalListPrivacy: { type: String, enum: ['public', 'private'], default: 'private' },
   reviewedPrivacy: { type: String, enum: ['public', 'private'], default: 'private' },
