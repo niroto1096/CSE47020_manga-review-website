@@ -1,20 +1,32 @@
 const mongoose = require('mongoose');
 
 const otpSchema = new mongoose.Schema({
+  purpose: {
+    type: String,
+    enum: ['REGISTRATION', 'LOGIN_2FA'],
+    default: 'REGISTRATION'
+  },
   role: String,
   name: String,
-  email: String,
+  email: {
+    type: String,
+    required: true
+  },
   password: String,
+  salt: String,
   address: String,
   phone: String,
   company: String,       
-  website: String ,
-  otp: String,
+  website: String,
+  otp: {
+    type: String,
+    required: true
+  },
   createdAt: {
     type: Date,
     default: Date.now,
-    expires: 120 
-  },
+    expires: 180 // Valid for 3 minutes
+  }
 });
 
 module.exports = mongoose.model('otps', otpSchema);

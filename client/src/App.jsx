@@ -19,6 +19,7 @@ import Profile from "./Pages/Profile";
 // New pages (added safely)
 import Feed from "./Pages/Feed";
 import UserProfile from "./Pages/UserProfile";
+import KeyManagement from "./Pages/KeyManagement";
 import "slick-carousel/slick/slick.css";
 import "slick-carousel/slick/slick-theme.css";
 
@@ -156,6 +157,14 @@ function AppRoutes() {
         }
       />
 
+      <Route
+        path="/crypto-keys"
+        element={
+          <ProtectedRoute role={["user", "admin"]}>
+            <KeyManagement />
+          </ProtectedRoute>
+        }
+      />
       {/* Fallback */}
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>

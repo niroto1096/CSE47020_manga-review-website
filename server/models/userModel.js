@@ -1,16 +1,45 @@
 const mongoose = require('mongoose');
 
 const userSchema = new mongoose.Schema({
-  role: String,
-  name: String,
-  email: String,
-  password: String,
+  role: {
+    type: String,
+    enum: ['user', 'admin'],
+    default: 'user'
+  },
+  name: {
+    type: String,
+    required: true
+  },
+  email: {
+    type: String,
+    required: true,
+    unique: true
+  },
+  password: {
+    type: String,
+    required: true
+  },
+  salt: {
+    type: String,
+    required: true
+  },
   avatar: String,
-  // privacy settings for profile sections
+  // Encrypted PII Container (RSA Encrypted + HMAC Integrity Envelope)
+  encryptedProfile: {
+    type: mongoose.Schema.Types.Mixed
+  },
+  // Plain fields (maintained for fast display & backward compatibility)
+  address: String,
+  phone: String,
+  company: String,       
+  website: String,
+
+  // Privacy settings for profile sections
   personalListPrivacy: { type: String, enum: ['public', 'private'], default: 'private' },
   reviewedPrivacy: { type: String, enum: ['public', 'private'], default: 'private' },
   favoritesPrivacy: { type: String, enum: ['public', 'private'], default: 'private' },
-  // social: who I follow and who follows me
+
+  // Social relations
   following: [
     {
       type: mongoose.Schema.Types.ObjectId,
@@ -29,10 +58,10 @@ const userSchema = new mongoose.Schema({
       ref: 'mangas'
     }
   ],
-  address: String,
-  phone: String,
-  company: String,       
-  website: String 
+  createdAt: {
+    type: Date,
+    default: Date.now
+  }
 });
 
 module.exports = mongoose.model('users', userSchema);

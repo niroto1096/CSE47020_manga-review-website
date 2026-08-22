@@ -17,6 +17,10 @@ const personalListSchema = new mongoose.Schema(
       enum: ["Reading", "Completed", "Planned", "Unread"],
       default: "Unread",
     },
+    // Encrypted Container (ECC Encrypted + HMAC Integrity Envelope)
+    encryptedData: {
+      type: mongoose.Schema.Types.Mixed,
+    },
   },
   {
     timestamps: true,

@@ -19,6 +19,10 @@ const reviewSchema = new mongoose.Schema(
       minlength: 10,
       maxlength: 5000,
     },
+    // Encrypted Review Envelope (RSA Encrypted + HMAC Integrity)
+    encryptedReview: {
+      type: mongoose.Schema.Types.Mixed,
+    },
     rating: {
       type: Number,
       min: 1,

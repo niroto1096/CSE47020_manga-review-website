@@ -1,7 +1,8 @@
 const PersonalList = require("../models/personalListModel");
 const userModel = require("../models/userModel");
+const crypto = require("../crypto");
 
-// Create or update an entry
+// Create or update an entry (Encrypted with ECC from Scratch)
 const updatePersonalList = async (req, res) => {
   try {
     const { userId, mangaId, status } = req.body;
@@ -11,29 +12,35 @@ const updatePersonalList = async (req, res) => {
         .json({ message: "userId, mangaId, and status are required" });
     }
 
+    // Encrypt reading list status with ECC
+    const listPayload = { status, mangaId, updatedAt: new Date() };
+    const encryptedData = await crypto.dataCrypto.encryptWithECC(listPayload);
+
     let entry = await PersonalList.findOne({ user: userId, manga: mangaId });
 
     if (entry) {
       entry.status = status;
+      entry.encryptedData = encryptedData;
       await entry.save();
     } else {
       entry = await PersonalList.create({
         user: userId,
         manga: mangaId,
         status,
+        encryptedData
       });
     }
 
     return res
       .status(200)
-      .json({ message: "Personal list updated", data: entry });
+      .json({ message: "Personal list updated & ECC encrypted", data: entry });
   } catch (err) {
     console.error("Error in updatePersonalList:", err);
     res.status(500).json({ message: "Server error" });
   }
 };
 
-// Get the current status for a user + manga
+// Get the current status for a user + manga (Decrypted on Retrieval)
 const getStatus = async (req, res) => {
   try {
     const { userId, mangaId } = req.query;
@@ -45,7 +52,19 @@ const getStatus = async (req, res) => {
 
     const entry = await PersonalList.findOne({ user: userId, manga: mangaId });
     if (!entry) {
-      return res.status(200).json({ status: null }); // not in list yet
+      return res.status(200).json({ status: null });
+    }
+
+    // Decrypt ECC container
+    if (entry.encryptedData) {
+      try {
+        const decrypted = await crypto.dataCrypto.decryptWithECC(entry.encryptedData);
+        if (decrypted && decrypted.status) {
+          entry.status = decrypted.status;
+        }
+      } catch (decErr) {
+        console.warn("[getStatus] ECC decrypt notice:", decErr.message);
+      }
     }
 
     return res.status(200).json({ status: entry.status, data: entry });
@@ -55,7 +74,7 @@ const getStatus = async (req, res) => {
   }
 };
 
-// Get paginated personal list for a user (optionally filtered by status)
+// Get paginated personal list for a user (with ECC Decryption)
 const getList = async (req, res) => {
   try {
     const { userId, page = 1, limit = 20, status } = req.query;
@@ -63,14 +82,10 @@ const getList = async (req, res) => {
       return res.status(400).json({ message: "userId is required" });
     }
 
-    // Base query
     const query = { user: userId };
-
     if (status) {
-      // Explicit filter if passed in query
       query.status = status;
     } else {
-      // Default: exclude "Unread"
       query.status = { $ne: "Unread" };
     }
 
@@ -78,11 +93,24 @@ const getList = async (req, res) => {
 
     const [items, total] = await Promise.all([
       PersonalList.find(query)
-        .populate("manga") // returns full manga details
+        .populate("manga")
         .skip(skip)
         .limit(Number(limit)),
       PersonalList.countDocuments(query),
     ]);
+
+    for (const item of items) {
+      if (item.encryptedData) {
+        try {
+          const decrypted = await crypto.dataCrypto.decryptWithECC(item.encryptedData);
+          if (decrypted && decrypted.status) {
+            item.status = decrypted.status;
+          }
+        } catch (decErr) {
+          console.warn("[getList] ECC decrypt notice:", decErr.message);
+        }
+      }
+    }
 
     return res.status(200).json({ total, page: Number(page), items });
   } catch (err) {
@@ -91,26 +119,40 @@ const getList = async (req, res) => {
   }
 };
 
+// PUBLIC: get a user's personal list if privacy allows
+const getListPublic = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const user = await userModel.findById(id).select("personalListPrivacy");
+    if (!user) return res.status(404).json({ message: "User not found" });
+    if ((user.personalListPrivacy || "private") !== "public") {
+      return res.status(200).json({ items: [], privacy: "private" });
+    }
+    const items = await PersonalList.find({ user: id, status: { $ne: "Unread" } }).populate("manga");
+
+    for (const item of items) {
+      if (item.encryptedData) {
+        try {
+          const decrypted = await crypto.dataCrypto.decryptWithECC(item.encryptedData);
+          if (decrypted && decrypted.status) {
+            item.status = decrypted.status;
+          }
+        } catch (decErr) {
+          console.warn("[getListPublic] ECC decrypt notice:", decErr.message);
+        }
+      }
+    }
+
+    return res.status(200).json({ items, privacy: "public" });
+  } catch (err) {
+    console.error("getListPublic error:", err.message);
+    return res.status(500).json({ message: "Server error" });
+  }
+};
+
 module.exports = {
   updatePersonalList,
   getStatus,
   getList,
-};
-
-// PUBLIC: get a user's personal list if privacy allows
-module.exports.getListPublic = async (req, res) => {
-  try {
-    const { id } = req.params; // user id
-    const viewerId = req.user?.id || null;
-    const user = await userModel.findById(id).select('personalListPrivacy');
-    if (!user) return res.status(404).json({ message: 'User not found' });
-    if ((user.personalListPrivacy || 'private') !== 'public') {
-      return res.status(200).json({ items: [], privacy: 'private' });
-    }
-    const items = await PersonalList.find({ user: id, status: { $ne: 'Unread' } }).populate('manga');
-    return res.status(200).json({ items, privacy: 'public' });
-  } catch (err) {
-    console.error('getListPublic error:', err.message);
-    return res.status(500).json({ message: 'Server error' });
-  }
+  getListPublic,
 };

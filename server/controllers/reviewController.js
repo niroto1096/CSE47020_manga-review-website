@@ -3,6 +3,7 @@ const Joi = require("joi");
 const Review = require("../models/reviewModel");
 const Manga = require("../models/mangaModel");
 const userModel = require("../models/userModel");
+const crypto = require("../crypto");
 
 // Validate request body for creating/updating reviews
 const reviewSchema = Joi.object({
@@ -12,7 +13,7 @@ const reviewSchema = Joi.object({
   userId: Joi.string().optional(),
 });
 
-// Create or update a review
+// Create or update a review (Encrypted with RSA from Scratch)
 exports.createOrUpdateReview = async (req, res) => {
   try {
     const authUserId = req.user?.id || req.user?._id;
@@ -23,9 +24,7 @@ exports.createOrUpdateReview = async (req, res) => {
 
     const finalUserId = authUserId || userId;
     if (!finalUserId) {
-      return res
-        .status(401)
-        .json({ message: "Unauthorized: user not provided" });
+      return res.status(401).json({ message: "Unauthorized: user not provided" });
     }
 
     // Ensure manga exists
@@ -34,14 +33,17 @@ exports.createOrUpdateReview = async (req, res) => {
       return res.status(404).json({ message: "Manga not found" });
     }
 
+    // Encrypt review text with RSA and generate HMAC
+    const encryptedReview = await crypto.dataCrypto.encryptWithRSA(review);
+
     // Use upsert to create or update the review
     const reviewDoc = await Review.findOneAndUpdate(
       { user: finalUserId, manga: mangaId },
-      { review, rating },
-      { 
-        new: true, 
+      { review, encryptedReview, rating },
+      {
+        new: true,
         upsert: true,
-        runValidators: true 
+        runValidators: true,
       }
     );
 
@@ -52,7 +54,7 @@ exports.createOrUpdateReview = async (req, res) => {
     });
 
     return res.status(201).json({
-      message: "Review saved successfully",
+      message: "Review saved and encrypted successfully",
       review: populated,
     });
   } catch (err) {
@@ -72,7 +74,7 @@ exports.createOrUpdateReview = async (req, res) => {
   }
 };
 
-// Get user's review for a specific manga
+// Get user's review for a specific manga (Decrypted on Retrieval with MAC check)
 exports.getUserReview = async (req, res) => {
   try {
     const { mangaId } = req.query;
@@ -90,9 +92,9 @@ exports.getUserReview = async (req, res) => {
       return res.status(400).json({ message: "Invalid mangaId" });
     }
 
-    const review = await Review.findOne({ 
-      user: userId, 
-      manga: mangaId 
+    const review = await Review.findOne({
+      user: userId,
+      manga: mangaId,
     }).populate({
       path: "user",
       select: "name username avatar",
@@ -102,6 +104,15 @@ exports.getUserReview = async (req, res) => {
       return res.status(404).json({ message: "Review not found" });
     }
 
+    // Decrypt RSA encrypted review text
+    if (review.encryptedReview) {
+      try {
+        review.review = await crypto.dataCrypto.decryptWithRSA(review.encryptedReview);
+      } catch (decErr) {
+        console.warn("[getUserReview] RSA decryption notice:", decErr.message);
+      }
+    }
+
     res.json({ review });
   } catch (err) {
     console.error("getUserReview error:", err);
@@ -109,7 +120,7 @@ exports.getUserReview = async (req, res) => {
   }
 };
 
-// Get all reviews for a manga with pagination
+// Get all reviews for a manga with pagination and RSA Decryption
 exports.getMangaReviews = async (req, res) => {
   try {
     const { mangaId } = req.query;
@@ -125,10 +136,8 @@ exports.getMangaReviews = async (req, res) => {
       return res.status(400).json({ message: "Invalid mangaId" });
     }
 
-    // Clamp pagination
     const page = Number.isFinite(rawPage) && rawPage > 0 ? rawPage : 1;
-    const limit =
-      Number.isFinite(rawLimit) && rawLimit > 0 ? Math.min(rawLimit, 50) : 10;
+    const limit = Number.isFinite(rawLimit) && rawLimit > 0 ? Math.min(rawLimit, 50) : 10;
     const skip = (page - 1) * limit;
 
     const [result] = await Review.aggregate([
@@ -143,17 +152,18 @@ exports.getMangaReviews = async (req, res) => {
             { $addFields: { likesCount: { $size: "$likes" }, dislikesCount: { $size: "$dislikes" } } },
             {
               $addFields: {
-                userReaction: currentUserId && mongoose.isValidObjectId(currentUserId)
-                  ? {
-                      $switch: {
-                        branches: [
-                          { case: { $in: [new mongoose.Types.ObjectId(currentUserId), "$likes"] }, then: "like" },
-                          { case: { $in: [new mongoose.Types.ObjectId(currentUserId), "$dislikes"] }, then: "dislike" },
-                        ],
-                        default: "none",
-                      },
-                    }
-                  : "none",
+                userReaction:
+                  currentUserId && mongoose.isValidObjectId(currentUserId)
+                    ? {
+                        $switch: {
+                          branches: [
+                            { case: { $in: [new mongoose.Types.ObjectId(currentUserId), "$likes"] }, then: "like" },
+                            { case: { $in: [new mongoose.Types.ObjectId(currentUserId), "$dislikes"] }, then: "dislike" },
+                          ],
+                          default: "none",
+                        },
+                      }
+                    : "none",
               },
             },
             {
@@ -169,6 +179,7 @@ exports.getMangaReviews = async (req, res) => {
             {
               $project: {
                 review: 1,
+                encryptedReview: 1,
                 rating: 1,
                 user: 1,
                 createdAt: 1,
@@ -190,9 +201,22 @@ exports.getMangaReviews = async (req, res) => {
       },
     ]);
 
+    const items = result?.items ?? [];
+
+    // Decrypt RSA encrypted reviews
+    for (const item of items) {
+      if (item.encryptedReview) {
+        try {
+          item.review = await crypto.dataCrypto.decryptWithRSA(item.encryptedReview);
+        } catch (decErr) {
+          console.warn("[getMangaReviews] RSA decryption notice:", decErr.message);
+        }
+      }
+    }
+
     const total = result?.total ?? 0;
     res.json({
-      items: result?.items ?? [],
+      items,
       total,
       page,
       pages: Math.ceil(total / (limit || 1)),
@@ -232,7 +256,7 @@ exports.toggleReviewReaction = async (req, res) => {
   try {
     const reviewId = req.params.id;
     const userId = req.user?.id || req.body.userId;
-    const { reaction } = req.body; // "like" | "dislike" | "none"
+    const { reaction } = req.body;
 
     if (!userId) return res.status(401).json({ message: "Unauthorized" });
     if (!["like", "dislike", "none"].includes(reaction)) {
@@ -242,7 +266,6 @@ exports.toggleReviewReaction = async (req, res) => {
     const doc = await Review.findById(reviewId);
     if (!doc) return res.status(404).json({ message: "Review not found" });
 
-    // Remove from both first
     doc.likes = (doc.likes || []).filter((u) => String(u) !== String(userId));
     doc.dislikes = (doc.dislikes || []).filter((u) => String(u) !== String(userId));
 
@@ -256,6 +279,14 @@ exports.toggleReviewReaction = async (req, res) => {
       select: "name username avatar",
     });
 
+    if (populated && populated.encryptedReview) {
+      try {
+        populated.review = await crypto.dataCrypto.decryptWithRSA(populated.encryptedReview);
+      } catch (decErr) {
+        console.warn("[toggleReaction] Decrypt notice:", decErr.message);
+      }
+    }
+
     res.json({
       message: "Reaction updated",
       likesCount: populated.likes?.length || 0,
@@ -268,7 +299,7 @@ exports.toggleReviewReaction = async (req, res) => {
   }
 };
 
-// Get review summary (average rating and count) for a manga
+// Get review summary
 exports.getReviewSummary = async (req, res) => {
   try {
     const { mangaId } = req.query;
@@ -297,22 +328,33 @@ exports.getReviewSummary = async (req, res) => {
   }
 };
 
-// PUBLIC: get a user's reviews if privacy allows
+// Public: get a user's reviews if privacy allows
 exports.getUserReviewsPublic = async (req, res) => {
   try {
-    const { id } = req.params; // user id
-    const user = await userModel.findById(id).select('reviewedPrivacy');
-    if (!user) return res.status(404).json({ message: 'User not found' });
-    if ((user.reviewedPrivacy || 'private') !== 'public') {
-      return res.status(200).json({ items: [], privacy: 'private' });
+    const { id } = req.params;
+    const user = await userModel.findById(id).select("reviewedPrivacy");
+    if (!user) return res.status(404).json({ message: "User not found" });
+    if ((user.reviewedPrivacy || "private") !== "public") {
+      return res.status(200).json({ items: [], privacy: "private" });
     }
     const items = await Review.find({ user: id })
-      .populate({ path: 'manga' })
+      .populate({ path: "manga" })
       .sort({ createdAt: -1 })
       .limit(100);
-    return res.status(200).json({ items, privacy: 'public' });
+
+    for (const rev of items) {
+      if (rev.encryptedReview) {
+        try {
+          rev.review = await crypto.dataCrypto.decryptWithRSA(rev.encryptedReview);
+        } catch (decErr) {
+          console.warn("[getUserReviewsPublic] Decrypt notice:", decErr.message);
+        }
+      }
+    }
+
+    return res.status(200).json({ items, privacy: "public" });
   } catch (err) {
-    console.error('getUserReviewsPublic error:', err.message);
-    return res.status(500).json({ message: 'Internal server error' });
+    console.error("getUserReviewsPublic error:", err.message);
+    return res.status(500).json({ message: "Internal server error" });
   }
 };
