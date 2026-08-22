@@ -1,12 +1,14 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useContext } from 'react';
 import { getPublicUserApi, followApi, unfollowApi, getPersonalListPublicApi, getUserReviewsPublicApi, getFavoritesPublicApi } from '@/Api/authApi';
 import { Link, useParams } from 'react-router-dom';
+import { UserContext } from '@/Context/UserContext';
 
 const IMAGE_BASE = import.meta.env.VITE_API_URL?.replace(/\/+$/, "") || "http://localhost:8000";
 
 export default function UserProfile() {
   const { id } = useParams();
-  const me = localStorage.getItem('userId');
+  const { userId: contextUserId } = useContext(UserContext) || {};
+  const me = contextUserId || localStorage.getItem('userId');
   const [user, setUser] = useState(null);
   const [isFollowing, setIsFollowing] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -18,12 +20,12 @@ export default function UserProfile() {
   const load = async () => {
     setLoading(true);
     try {
-  const { data } = await getPublicUserApi(id);
+      const { data } = await getPublicUserApi(id);
       setUser(data.user);
       // compute following based on whether me is in user's followers
       const followers = data?.user?.followers || [];
       const mine = String(me || '');
-      setIsFollowing(Array.isArray(followers) && followers.some((u) => String(u._id || u) === mine));
+      setIsFollowing(Array.isArray(followers) && followers.some((u) => String(u._id || u.id || u) === mine));
       // fetch public data for sections (endpoints respect privacy)
       try {
         const [pl, rv, fv] = await Promise.allSettled([
@@ -48,7 +50,7 @@ export default function UserProfile() {
 
   useEffect(() => {
     if (id) load();
-  }, [id]);
+  }, [id, me]);
 
   const avatarUrl = (a) => {
     if (!a) return 'https://c8.alamy.com/comp/2PWERD5/student-avatar-illustration-simple-cartoon-user-portrait-user-profile-icon-youth-avatar-vector-illustration-2PWERD5.jpg';
@@ -58,34 +60,33 @@ export default function UserProfile() {
   };
 
   const doFollow = async () => {
-    if (busy) return; setBusy(true);
-    const before = isFollowing;
-    setIsFollowing(true);
+    if (busy) return;
+    setBusy(true);
     try {
       await followApi(id);
+      setIsFollowing(true);
       await load();
-  // notify app to refresh following-dependent views
-  window.dispatchEvent(new CustomEvent('social:follow-updated', { detail: { targetId: id, action: 'follow' } }));
+      window.dispatchEvent(new CustomEvent('social:follow-updated', { detail: { targetId: id, action: 'follow' } }));
     } catch (e) {
-      console.error(e);
-      setIsFollowing(before);
-    } finally { setBusy(false); }
+      console.error("Follow error:", e);
+    } finally {
+      setBusy(false);
+    }
   };
+
   const doUnfollow = async () => {
-    if (busy) return; setBusy(true);
-    const before = isFollowing;
-    setIsFollowing(false);
+    if (busy) return;
+    setBusy(true);
     try {
       await unfollowApi(id);
-  // update local user followers list optimistically (remove me)
-  setUser((prev) => prev ? { ...prev, followers: (prev.followers || []).filter((u) => String(u._id || u) !== String(me)) } : prev);
-  await load();
-  // notify app to refresh following-dependent views
-  window.dispatchEvent(new CustomEvent('social:follow-updated', { detail: { targetId: id, action: 'unfollow' } }));
+      setIsFollowing(false);
+      await load();
+      window.dispatchEvent(new CustomEvent('social:follow-updated', { detail: { targetId: id, action: 'unfollow' } }));
     } catch (e) {
-      console.error(e);
-      setIsFollowing(before);
-    } finally { setBusy(false); }
+      console.error("Unfollow error:", e);
+    } finally {
+      setBusy(false);
+    }
   };
 
   if (loading) return <div className="p-6 mt-16">Loading...</div>;

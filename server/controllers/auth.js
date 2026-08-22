@@ -532,7 +532,7 @@ exports.getUserFavoritesPublic = async (req, res) => {
 };
 
 /**
- * Follow User
+ * Follow User (Atomic $addToSet to avoid document validation conflicts)
  */
 exports.followUser = async (req, res) => {
   try {
@@ -541,27 +541,33 @@ exports.followUser = async (req, res) => {
     const decoded = jwt.verify(token, process.env.JWT_SECRET || "CSE447_SECURE_JWT_SECRET");
     const userId = decoded.id;
     const { targetUserId } = req.body;
+
     if (!targetUserId) return res.status(400).json({ message: "targetUserId required" });
     if (String(userId) === String(targetUserId)) return res.status(400).json({ message: "Can't follow yourself" });
 
-    const me = await userModel.findById(userId);
-    const target = await userModel.findById(targetUserId);
+    // Atomic update
+    const me = await userModel.findByIdAndUpdate(
+      userId,
+      { $addToSet: { following: targetUserId } },
+      { new: true }
+    );
+    const target = await userModel.findByIdAndUpdate(
+      targetUserId,
+      { $addToSet: { followers: userId } },
+      { new: true }
+    );
+
     if (!me || !target) return res.status(404).json({ message: "User not found" });
-    me.following = me.following || [];
-    target.followers = target.followers || [];
-    if (!me.following.map(String).includes(String(targetUserId))) me.following.push(targetUserId);
-    if (!target.followers.map(String).includes(String(userId))) target.followers.push(userId);
-    await me.save();
-    await target.save();
-    return res.status(200).json({ message: "Followed", following: me.following });
+
+    return res.status(200).json({ message: "Followed", following: me.following || [] });
   } catch (err) {
     console.error("followUser error", err.message);
-    return res.status(500).json({ message: "Internal Server Error" });
+    return res.status(500).json({ message: "Internal Server Error: " + err.message });
   }
 };
 
 /**
- * Unfollow User
+ * Unfollow User (Atomic $pull)
  */
 exports.unfollowUser = async (req, res) => {
   try {
@@ -570,18 +576,27 @@ exports.unfollowUser = async (req, res) => {
     const decoded = jwt.verify(token, process.env.JWT_SECRET || "CSE447_SECURE_JWT_SECRET");
     const userId = decoded.id;
     const { targetUserId } = req.body;
+
     if (!targetUserId) return res.status(400).json({ message: "targetUserId required" });
-    const me = await userModel.findById(userId);
-    const target = await userModel.findById(targetUserId);
+
+    // Atomic update
+    const me = await userModel.findByIdAndUpdate(
+      userId,
+      { $pull: { following: targetUserId } },
+      { new: true }
+    );
+    const target = await userModel.findByIdAndUpdate(
+      targetUserId,
+      { $pull: { followers: userId } },
+      { new: true }
+    );
+
     if (!me || !target) return res.status(404).json({ message: "User not found" });
-    me.following = (me.following || []).filter((f) => String(f) !== String(targetUserId));
-    target.followers = (target.followers || []).filter((f) => String(f) !== String(userId));
-    await me.save();
-    await target.save();
-    return res.status(200).json({ message: "Unfollowed", following: me.following });
+
+    return res.status(200).json({ message: "Unfollowed", following: me.following || [] });
   } catch (err) {
     console.error("unfollowUser error", err.message);
-    return res.status(500).json({ message: "Internal Server Error" });
+    return res.status(500).json({ message: "Internal Server Error: " + err.message });
   }
 };
 

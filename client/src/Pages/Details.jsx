@@ -408,10 +408,6 @@ const Details = () => {
               <strong>⭐</strong> {avgRating5.toFixed(2)}/5
               <span className="text-gray-500 dark:text-gray-400"> ({reviewCount})</span>
             </p>
-            <p>
-              <strong>Rank:</strong>{" "}
-              {rank ? `#${rank} of ${totalCount || "?"}` : "N/A"}
-            </p>
           </div>
 
           <p className="text-sm leading-relaxed text-gray-700 dark:text-gray-300">
