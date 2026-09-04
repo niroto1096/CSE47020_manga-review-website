@@ -14,8 +14,6 @@ const Registration = () => {
     name: "",
     email: "",
     password: "",
-    company: "",
-    companyWebsite: "",
     role: "user",
   });
 
@@ -135,25 +133,6 @@ const Registration = () => {
             </div>
           )}
         </div>
-
-        {role === "seller" && (
-          <>
-            <Input
-              name="company"
-              placeholder="Company Name"
-              value={form.company}
-              onChange={handleChange}
-              required
-            />
-
-            <Input
-              name="companyWebsite"
-              placeholder="Company Website (optional)"
-              value={form.companyWebsite}
-              onChange={handleChange}
-            />
-          </>
-        )}
 
         <Button
           type="submit"

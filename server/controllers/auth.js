@@ -20,7 +20,7 @@ const transporter = nodemailer.createTransport({
  */
 exports.registration = async (req, res) => {
   try {
-    const { name, email, password, address, phone, company, website, role } = req.body;
+    const { name, email, password, role } = req.body;
 
     const trimmedName = name ? name.trim() : "";
     if (!trimmedName) {
@@ -48,13 +48,10 @@ exports.registration = async (req, res) => {
     const salt = crypto.hash.generateSalt(16);
     const passwordHash = crypto.hash.hashPassword(password, salt);
 
-    // 2. Encrypt User PII (address, phone, company, website) with RSA from Scratch
+    // 2. Encrypt User PII (name, email) with RSA from Scratch
     const sensitiveProfile = {
       name: trimmedName,
-      address: address || "",
-      phone: phone || "",
-      company: company || "",
-      website: website || ""
+      email: trimmedEmail,
     };
     const encryptedProfile = await crypto.dataCrypto.encryptWithRSA(sensitiveProfile);
 
@@ -70,10 +67,6 @@ exports.registration = async (req, res) => {
       email: trimmedEmail,
       password: passwordHash,
       salt: salt,
-      address,
-      phone,
-      company,
-      website,
       role: role || "user",
       otp,
     });
@@ -125,7 +118,7 @@ exports.verifyOTP = async (req, res) => {
       return res.status(400).json("Invalid OTP! Please check the code sent to your email.");
     }
 
-    const { name, password, salt, address, phone, company, website, role } = record;
+    const { name, password, salt, role } = record;
 
     const existingUser = await userModel.findOne({ email });
     if (existingUser) {
@@ -133,8 +126,8 @@ exports.verifyOTP = async (req, res) => {
       return res.status(400).json("User with same email already exists!");
     }
 
-    // Encrypt sensitive profile info with RSA
-    const profileData = { name, address, phone, company, website };
+    // Encrypt sensitive profile info (name, email) with RSA
+    const profileData = { name, email };
     const encryptedProfile = await crypto.dataCrypto.encryptWithRSA(profileData);
 
     await userModel.create({
@@ -142,10 +135,6 @@ exports.verifyOTP = async (req, res) => {
       email,
       password, // Salted password hash
       salt,
-      address,
-      phone,
-      company,
-      website,
       role: role || "user",
       encryptedProfile
     });
@@ -311,6 +300,8 @@ exports.verifyLogin2FA = async (req, res) => {
       try {
         const decrypted = await crypto.dataCrypto.decryptWithRSA(user.encryptedProfile);
         if (decrypted && typeof decrypted === "object") {
+          user.name = decrypted.name || user.name;
+          user.email = decrypted.email || user.email;
           user.address = decrypted.address || user.address;
           user.phone = decrypted.phone || user.phone;
           user.company = decrypted.company || user.company;
@@ -370,6 +361,8 @@ exports.verifyUser = async (req, res) => {
         try {
           const decrypted = await crypto.dataCrypto.decryptWithRSA(fullUser.encryptedProfile);
           if (decrypted && typeof decrypted === "object") {
+            fullUser.name = decrypted.name || fullUser.name;
+            fullUser.email = decrypted.email || fullUser.email;
             fullUser.address = decrypted.address || fullUser.address;
             fullUser.phone = decrypted.phone || fullUser.phone;
             fullUser.company = decrypted.company || fullUser.company;

@@ -14,14 +14,12 @@ const reviewSchema = new mongoose.Schema(
     },
     review: {
       type: String,
-      required: true,
-      trim: true,
-      minlength: 10,
-      maxlength: 5000,
+      default: "[ENCRYPTED - RSA]",
     },
     // Encrypted Review Envelope (RSA Encrypted + HMAC Integrity)
     encryptedReview: {
       type: mongoose.Schema.Types.Mixed,
+      required: true,
     },
     rating: {
       type: Number,

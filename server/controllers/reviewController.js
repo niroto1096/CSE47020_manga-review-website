@@ -36,10 +36,10 @@ exports.createOrUpdateReview = async (req, res) => {
     // Encrypt review text with RSA and generate HMAC
     const encryptedReview = await crypto.dataCrypto.encryptWithRSA(review);
 
-    // Use upsert to create or update the review
+    // Use upsert to create or update the review (storing placeholder in review field to ensure zero plaintext in DB)
     const reviewDoc = await Review.findOneAndUpdate(
       { user: finalUserId, manga: mangaId },
-      { review, encryptedReview, rating },
+      { review: "[ENCRYPTED - RSA]", encryptedReview, rating },
       {
         new: true,
         upsert: true,
@@ -53,9 +53,12 @@ exports.createOrUpdateReview = async (req, res) => {
       select: "name username avatar",
     });
 
+    const resultObj = populated.toObject();
+    resultObj.review = review; // Provide decrypted plain text in immediate response
+
     return res.status(201).json({
       message: "Review saved and encrypted successfully",
-      review: populated,
+      review: resultObj,
     });
   } catch (err) {
     if (err.isJoi) {

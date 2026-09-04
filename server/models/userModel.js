@@ -28,11 +28,6 @@ const userSchema = new mongoose.Schema({
   encryptedProfile: {
     type: mongoose.Schema.Types.Mixed
   },
-  // Plain fields (maintained for fast display & backward compatibility)
-  address: String,
-  phone: String,
-  company: String,       
-  website: String,
 
   // Privacy settings for profile sections
   personalListPrivacy: { type: String, enum: ['public', 'private'], default: 'private' },
